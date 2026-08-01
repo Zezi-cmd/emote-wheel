@@ -74,7 +74,7 @@ public enum Emote
 	PUSH_UP("Push up"),
 	STAR_JUMP("Star jump"),
 	JOG("Jog"),
-	SKILLCAPE("Skillcape"),
+	SKILLCAPE("Skillcape", "cape"),
 	AIR_GUITAR("Air Guitar"),
 	URI_TRANSFORM("Uri transform"),
 	EXPLORE("Explore"),
@@ -91,18 +91,37 @@ public enum Emote
 	SMOOTH_DANCE("Smooth dance"),
 	CRAZY_DANCE("Crazy dance"),
 	PARTY("Party"),
-	TRICK("Trick");
+	TRICK("Trick"),
+	RELIC_UNLOCK("Relic unlock");
 
 	private final String displayName;
+	private final String matchTerm;
 
 	Emote(String displayName)
 	{
+		this(displayName, displayName);
+	}
+
+	/**
+	 * @param matchTerm text used to find this emote's button in the tab. Usually the
+	 *                  display name, but the Skillcape button is renamed after the
+	 *                  worn cape (e.g. "Attack cape", "Max cape"), so it matches on
+	 *                  the shared substring "cape" instead.
+	 */
+	Emote(String displayName, String matchTerm)
+	{
 		this.displayName = displayName;
+		this.matchTerm = matchTerm;
 	}
 
 	public String getDisplayName()
 	{
 		return displayName;
+	}
+
+	public String getMatchTerm()
+	{
+		return matchTerm;
 	}
 
 	@Override

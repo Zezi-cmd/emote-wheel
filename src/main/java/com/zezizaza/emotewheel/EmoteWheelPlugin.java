@@ -345,14 +345,14 @@ public class EmoteWheelPlugin extends Plugin
 			Emote toRemove = seg.getEmote();
 			client.getMenu().createMenuEntry(1)
 					.setOption("Remove")
-					.setTarget(emoteEntry.getTarget())
+					.setTarget(emoteTarget(emoteEntry, toRemove))
 					.setType(MenuAction.RUNELITE)
 					.onClick(e -> removeFromSlots(toRemove));
 			return;
 		}
 
 		// Off the wheel: offer to favourite this emote into a slot.
-		Emote emote = emoteByName(emoteEntry.getWidget().getName());
+		Emote emote = emoteByName(buttonLabel(emoteEntry.getWidget()));
 		if (emote == null)
 		{
 			return;
@@ -360,7 +360,7 @@ public class EmoteWheelPlugin extends Plugin
 
 		MenuEntry parent = client.getMenu().createMenuEntry(1)
 				.setOption("Favorite")
-				.setTarget(emoteEntry.getTarget())
+				.setTarget(emoteTarget(emoteEntry, emote))
 				.setType(MenuAction.RUNELITE);
 		Menu submenu = parent.createSubMenu();
 
@@ -424,6 +424,20 @@ public class EmoteWheelPlugin extends Plugin
 				continue;
 			}
 			if (normalise(e.getDisplayName()).equals(needle))
+			{
+				return e;
+			}
+		}
+		// Fallback for emotes whose button is renamed at runtime (only Skillcape,
+		// shown as "Attack cape", "Max cape", etc.): match on the shared term.
+		for (Emote e : Emote.values())
+		{
+			if (e == Emote.NONE || e == Emote.RANDOM)
+			{
+				continue;
+			}
+			String term = normalise(e.getMatchTerm());
+			if (!term.equals(normalise(e.getDisplayName())) && needle.contains(term))
 			{
 				return e;
 			}
@@ -621,7 +635,7 @@ public class EmoteWheelPlugin extends Plugin
 				continue;
 			}
 
-			Widget w = findEmoteWidget(children, emote.getDisplayName());
+			Widget w = findEmoteWidget(children, emote.getMatchTerm());
 			if (w == null)
 			{
 				continue;
@@ -646,7 +660,7 @@ public class EmoteWheelPlugin extends Plugin
 			{
 				if (p2.emote != Emote.RANDOM && p2.widget != null)
 				{
-					favNames.add(normalise(p2.widget.getName()));
+					favNames.add(buttonLabel(p2.widget));
 				}
 			}
 
@@ -656,7 +670,7 @@ public class EmoteWheelPlugin extends Plugin
 			for (Widget child : children)
 			{
 				if (child != null && isPerformButton(child)
-						&& !favNames.contains(normalise(child.getName())))
+						&& !favNames.contains(buttonLabel(child)))
 				{
 					candidates.add(child);
 				}
@@ -1012,7 +1026,14 @@ public class EmoteWheelPlugin extends Plugin
 		}
 		for (String a : actions)
 		{
-			if (a != null && a.trim().equalsIgnoreCase(PERFORM_ACTION))
+			if (a == null)
+			{
+				continue;
+			}
+			String na = a.trim().toLowerCase();
+			// Most emotes carry a plain "Perform"; a few (Relic unlock) carry the
+			// emote in the action itself as "Perform <name>".
+			if (na.equals(PERFORM_ACTION) || na.startsWith(PERFORM_ACTION + " "))
 			{
 				return true;
 			}
@@ -1032,16 +1053,61 @@ public class EmoteWheelPlugin extends Plugin
 		{
 			return true;
 		}
-		String nm = normalise(w.getName());
+		String nm = buttonLabel(w);
 		return !nm.isEmpty() && EMOTE_NAMES.contains(nm);
 	}
 
 	// --------------------------------------------------------------- matching
 
 	/**
-	 * getName() returns the plain emote name ("bow", "jump for joy") on every
-	 * child, so name matching is the only path used. Exact match first so "bow"
-	 * cannot swallow "goblin bow".
+	 * Text shown after the menu option (e.g. "Favorite <em>Bow</em>"). Normal emote
+	 * buttons already provide a coloured target; the blank-named ones (Relic unlock)
+	 * provide none, so fall back to the resolved emote's name.
+	 */
+	private String emoteTarget(MenuEntry entry, Emote emote)
+	{
+		String t = entry.getTarget();
+		// The game colours emote targets orange (ff9040); match it for the blank-named
+		// ones so "Favorite Relic unlock" looks identical to every other emote.
+		return normalise(t).isEmpty() ? "<col=ff9040>" + emote.getDisplayName() + "</col>" : t;
+	}
+
+	/**
+	 * The emote's identifying text. Almost every button exposes it via getName()
+	 * ("bow", "jump for joy"). A few special emotes (Relic unlock) leave the name
+	 * and text blank and instead carry it in their action as "Perform &lt;name&gt;";
+	 * for those we recover the name from the action.
+	 */
+	private String buttonLabel(Widget w)
+	{
+		String name = normalise(w.getName());
+		if (!name.isEmpty())
+		{
+			return name;
+		}
+		String[] actions = w.getActions();
+		if (actions != null)
+		{
+			for (String a : actions)
+			{
+				if (a == null)
+				{
+					continue;
+				}
+				String na = normalise(a);
+				if (na.startsWith(PERFORM_ACTION + " "))
+				{
+					return na.substring(PERFORM_ACTION.length() + 1).trim();
+				}
+			}
+		}
+		return "";
+	}
+
+	/**
+	 * Match a wanted emote to its button by label. Exact match first so "bow"
+	 * cannot swallow "goblin bow"; then substring so a match term like "cape"
+	 * catches the renamed Skillcape button.
 	 */
 	private Widget findEmoteWidget(Widget[] children, String emoteName)
 	{
@@ -1050,7 +1116,7 @@ public class EmoteWheelPlugin extends Plugin
 		for (Widget w : children)
 		{
 			if (w == null) continue;
-			if (normalise(w.getName()).equals(needle))
+			if (buttonLabel(w).equals(needle))
 			{
 				return w;
 			}
@@ -1059,7 +1125,7 @@ public class EmoteWheelPlugin extends Plugin
 		for (Widget w : children)
 		{
 			if (w == null) continue;
-			String nm = normalise(w.getName());
+			String nm = buttonLabel(w);
 			if (!nm.isEmpty() && nm.contains(needle))
 			{
 				return w;

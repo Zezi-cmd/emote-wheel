@@ -1,49 +1,43 @@
 # Emote Wheel
 
-A quality-of-life plugin that rearranges your favourite emotes into a radial
-**wheel** inside the emote tab. It moves the *real* game emote widgets into a
-ring, so every click is a genuine click on a genuine emote : no synthetic input.
+A quality-of-life plugin that transforms the emote tab into a customizable radial **wheel**. Choose up to six favourite emotes (plus an optional **Random** slot), then perform them using the original in-game emote widgets. Every click is a genuine click on a genuine RuneScape widget, with no synthetic input.
 
-<img width="640" height="422" alt="hero" src="https://github.com/user-attachments/assets/be227194-0f56-48c2-9ed6-de90fe9f726f" />
+![Hero](images/hero.png)
 
 ## Features
 
-- **Six favourite slots** arranged in a ring, set from the side panel or by
-  right-clicking any emote in the tab and choosing **Favorite → Slot N**.
-- **Hotkey toggle** : press to show the wheel, press again for the normal grid.
-  Optional hold-to-show mode.
-- **Hover feedback** : the emote under the cursor scales up while the others fade
-  back, with a smooth press-dip when you click.
-- **Spiral entrance** : the emotes spiral out into the ring when the wheel opens.
-- **Random slot** : a "slot machine" that cycles real unlocked emotes; clicking
-  it performs whichever one is showing (a real click on a real button).
-- **Remembers its state** between sessions, and restores the normal emote menu
-  untouched when toggled off.
+- **Six favourite slots** arranged in a ring, configured from the side panel or by right-clicking any emote and choosing **Favorite → Slot N**.
+- **Random slot** that cycles through your unlocked emotes like a slot machine. Clicking it performs whichever emote is currently showing.
+- **Hotkey toggle** to instantly switch between the radial wheel and the normal emote grid, with an optional hold-to-show mode.
+- **Hover feedback** with smooth scaling and press animations that make the wheel feel responsive.
+- **Spiral entrance animation** as the wheel expands into place.
+- **Real widget interaction**. The plugin rearranges RuneScape's existing emote widgets instead of simulating clicks or input.
+- **Persistent configuration**. Your wheel layout is remembered between sessions and the original emote interface is restored whenever the plugin is disabled.
 
 ## See it in action
 
-| Right-click to favourite | Configure your six slots |
+| Right-click to favourite | Configure your wheel |
 | :---: | :---: |
-| <img width="600" alt="favorites" src="https://github.com/user-attachments/assets/0617ebe3-ca3d-483a-aa77-55ad32b6d48f" /> | <img width="235" alt="sidebar screenshot" src="https://github.com/user-attachments/assets/20aa87e5-9bd9-4ac2-bc51-1de6aec61635" /> |
+| ![Favorites](images/favorites.png) | ![Configuration](images/sidebar.png) |
 
 ## Usage
 
-1. Set the **Wheel hotkey** in the plugin config.
-2. Open the emote tab and press the hotkey to raise the wheel.
-3. Choose your six favourites in the config, or right-click an emote in the tab
-   and pick **Favorite → Slot N**. With the wheel on, right-click gives **Remove**
-   to clear a slot.
+1. Enable the plugin.
+2. Assign a **Wheel Hotkey** in the plugin configuration.
+3. Open the emote tab.
+4. Press the hotkey to open the wheel.
+5. Fill your six slots either by:
+   - selecting emotes in the configuration panel, or
+   - right-clicking any emote and choosing **Favorite → Slot N**.
+6. Set any slot to **Random** if you'd like that position to cycle through unlocked emotes.
 
 ## Configuration
 
-- **Wheel hotkey** : key that toggles the wheel on and off.
-- **Hold to show** : toggle mode (default) vs. hold-to-show.
-- **Slots 1–6** : the emotes on the wheel; set to *None* to leave a slot out, or
-  *Random* for the random slot.
+- **Wheel Hotkey** - Toggles the wheel on and off.
+- **Hold to show** - Hold the hotkey instead of toggling.
+- **Slots 1-6** - Choose an emote, **Random**, or **None** for each position.
 
 ## Notes
 
-- Locked (dimmed) emotes can be placed on the wheel; clicking one simply does
-  nothing, exactly as the game already enforces.
-- The plugin only rearranges existing widgets and edits its own configuration and
-  it performs no game actions on your behalf.
+- Locked (dimmed) emotes can still be assigned to the wheel. Clicking them behaves exactly like the normal game interface and simply does nothing.
+- The plugin only rearranges existing RuneScape widgets and stores its own configuration. It performs no automated game actions or synthetic input.

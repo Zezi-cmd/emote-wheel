@@ -1,67 +1,73 @@
 # Emote Wheel
 
-A quality-of-life plugin that rearranges your favorite emotes into a radial
-**wheel** inside the emote tab. It moves the *real* game emote widgets into a
-ring, so every click is a genuine click on a genuine emote - no synthetic input.
+A quality-of-life plugin that transforms the emote tab into a customizable radial
+**wheel**. Choose up to six favorite emotes (plus an optional **Random** slot), then
+perform them using the original in-game emote widgets. Every click is a genuine click
+on a genuine RuneScape widget, with no synthetic input.
 
 <img width="640" alt="The Emote Wheel" src="images/wheel.png" />
 
 ## Features
 
-- **Six favorite slots** arranged in a ring, set from the side panel or by
-  right-clicking any emote in the tab and choosing **Favorite -> Slot N**.
-- **Hotkey toggle** - press to show the wheel, press again for the normal grid.
-  Optional hold-to-show mode. The hotkey never fires while you are typing in chat.
-- **Drag to rearrange** - hold the rearrange key (default **Ctrl**) and drag an
-  emote to reorder the wheel. Choose **Drag and Swap** (two emotes trade places)
-  or **Drag and Slot** (drop into a slot, the rest shift) in the config. A plain
-  click without the key always performs the emote.
-- **Hover feedback** - the emote under the cursor scales up while the others fade
-  back, with a smooth press-dip when you click.
-- **Spiral entrance** - the emotes spiral out into the ring when the wheel opens,
-  and slide smoothly into place when you rearrange them.
-- **Random slot** - a "slot machine" that cycles real unlocked emotes; clicking
-  it performs whichever one is showing (a real click on a real button).
-- **Remembers its state** between sessions, and restores the normal emote menu
-  untouched when toggled off.
+- **Six favorite slots** arranged in a ring, configured from the side panel or by
+  right-clicking any emote and choosing **Favorite -> Slot N**.
+- **Drag to rearrange** - hold the rearrange key (default **Ctrl**) and drag an emote
+  to reorder the wheel. Pick **Drag and Swap** (two emotes trade places) or **Drag and
+  Slot** (drop into a slot, the rest shift) in the config. A plain click without the
+  key always performs the emote.
+- **Random slot** that cycles through your unlocked emotes like a slot machine.
+  Clicking it performs whichever emote is currently showing.
+- **Hotkey toggle** to instantly switch between the radial wheel and the normal emote
+  grid, with an optional hold-to-show mode. The hotkey never fires while you are
+  typing in chat.
+- **Hover feedback** with smooth scaling and press animations that make the wheel feel
+  responsive.
+- **Spiral entrance animation** as the wheel expands into place, and smooth sliding
+  when you rearrange.
+- **Real widget interaction.** The plugin rearranges RuneScape's existing emote
+  widgets instead of simulating clicks or input.
+- **Persistent configuration.** Your wheel layout is remembered between sessions, and
+  the original emote interface is restored whenever the plugin is disabled.
 
 ## Rearranging the wheel
 
-Hold **Ctrl** (or your chosen rearrange key) with the wheel open and drag an emote
-to move it. A short built-in tip walks you through it the first few times and then
-hides itself once you have done a rearrange.
+Hold **Ctrl** (or your chosen rearrange key) with the wheel open and drag an emote to
+move it. A short built-in tip walks you through it and then hides itself once you have
+done a rearrange.
 
-<img width="300" alt="Rearrange mode" src="images/rearrange.png" />
+<img width="640" alt="Rearrange mode" src="images/rearrange.png" />
 
-## See it in action
+## Setting favorites
 
-| Right-click to favorite | Configure your six slots |
-| :---: | :---: |
-| <img width="380" alt="Favorite an emote" src="images/favorite.png" /> | <img width="235" alt="Config panel" src="images/config.png" /> |
+Right-click any emote in the tab and choose **Favorite -> Slot N**, or pick them in the
+config panel. With the wheel on, right-click gives **Remove** to clear a slot.
+
+<img width="640" alt="Favorite an emote" src="images/favorite.png" />
 
 ## Usage
 
-1. Set the **Wheel hotkey** in the plugin config.
-2. Open the emote tab and press the hotkey to raise the wheel.
-3. Choose your six favorites in the config, or right-click an emote in the tab
-   and pick **Favorite -> Slot N**. With the wheel on, right-click gives **Remove**
-   to clear a slot.
-4. Hold the **rearrange key** (default Ctrl) and drag an emote to reorder the wheel.
+1. Enable the plugin.
+2. Assign a **Wheel hotkey** in the plugin configuration.
+3. Open the emote tab and press the hotkey to open the wheel.
+4. Fill your six slots from the config panel or by right-clicking emotes.
+5. Set any slot to **Random** for a position that cycles through unlocked emotes.
+6. Hold the **rearrange key** (default Ctrl) and drag an emote to reorder the wheel.
 
 ## Configuration
 
-- **Wheel hotkey** - key that toggles the wheel on and off.
-- **Hold to show** - toggle mode (default) vs. hold-to-show.
+<img width="220" align="right" alt="Config panel" src="images/config.png" />
+
+- **Wheel hotkey** - toggles the wheel on and off.
+- **Hold to show** - hold the hotkey instead of toggling.
 - **Rearrange key** - hold this and drag to reorder (default Ctrl).
 - **Drag Mode** - Drag and Swap (default) or Drag and Slot.
 - **Always show tip** - keep the rearrange tutorial tip showing (it auto-hides once
   you have rearranged once).
-- **Slots 1-6** - the emotes on the wheel; set to *None* to leave a slot out, or
-  *Random* for the random slot.
+- **Slots 1-6** - choose an emote, **Random**, or **None** for each position.
 
 ## Notes
 
-- Locked (dimmed) emotes can be placed on the wheel; clicking one simply does
-  nothing, exactly as the game already enforces.
-- The plugin only rearranges existing widgets and edits its own configuration - it
-  performs no game actions on your behalf.
+- Locked (dimmed) emotes can still be assigned to the wheel. Clicking them behaves
+  exactly like the normal game interface and simply does nothing.
+- The plugin only rearranges existing RuneScape widgets and stores its own
+  configuration. It performs no automated game actions or synthetic input.

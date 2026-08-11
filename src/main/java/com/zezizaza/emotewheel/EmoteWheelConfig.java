@@ -70,6 +70,59 @@ public interface EmoteWheelConfig extends Config
 		return false;
 	}
 
+	@ConfigItem(
+			keyName = "rearrangeKey",
+			name = "Rearrange key",
+			description = "Hold this key and drag an emote on the wheel to rearrange it. Defaults to "
+					+ "Control. A plain click (without this key) always performs the emote.",
+			section = inputSection,
+			position = 2
+	)
+	default Keybind rearrangeKey()
+	{
+		return Keybind.CTRL;
+	}
+
+	@ConfigItem(
+			keyName = "dragMode",
+			name = "Drag Mode",
+			description = "How dragging an emote rearranges the wheel. Drag and Slot: the emote drops "
+					+ "into the slot you aim at and the others shift to make room. Drag and Swap: the "
+					+ "dragged emote and the one you drop on trade places.",
+			section = inputSection,
+			position = 3
+	)
+	default DragMode dragMode()
+	{
+		return DragMode.SWAP;
+	}
+
+	@ConfigItem(
+			keyName = "showDragTip",
+			name = "Always show tip",
+			description = "Keep the \"Drag and Drop Emotes to rearrange\" helper tip showing whenever "
+					+ "the rearrange key is held. It hides itself automatically once you've done a "
+					+ "rearrange, so leave this off unless you want it to stay.",
+			section = inputSection,
+			position = 4
+	)
+	default boolean showDragTip()
+	{
+		return false;
+	}
+
+	/** Internal: set true the first time the player completes a rearrange, which hides the tip. */
+	@ConfigItem(
+			keyName = "tutorialDone",
+			name = "",
+			description = "",
+			hidden = true
+	)
+	default boolean tutorialDone()
+	{
+		return false;
+	}
+
 	// ----------------------------------------------------------------- layout
 
 	@ConfigItem(

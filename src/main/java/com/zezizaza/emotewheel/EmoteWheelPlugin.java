@@ -26,6 +26,7 @@ package com.zezizaza.emotewheel;
 
 import com.google.inject.Provides;
 import java.awt.Rectangle;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
@@ -49,11 +50,15 @@ import net.runelite.api.events.BeforeRender;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarClientID;
+import net.runelite.api.vars.InputType;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetSizeMode;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.Keybind;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseAdapter;
 import net.runelite.client.input.MouseListener;
@@ -107,6 +112,17 @@ public class EmoteWheelPlugin extends Plugin
 	private static final int RING_OFFSET_X = -1;
 	/** Transparency applied to non-hovered figures when something is hovered (0=opaque, 255=clear). */
 	private static final int FADE_OPACITY = 130;
+	/** Per-frame ease for the rearrange-mode frame stroke fade (higher = quicker). */
+	private static final double REARRANGE_EASE = 0.28;
+	/** Per-frame ease for figures sliding to new ring spots during a reorder (higher = snappier). */
+	private static final double POS_EASE = 0.35;
+	/** Dim applied to all figures while the rearrange key is held but none is hovered. */
+	private static final int ICON_FADE_OPACITY = 120;
+	/** How long (ms) the rearrange key must be held before the "Drag and Drop" tip fades in. */
+	private static final long LABEL_DELAY_MS = 1000;
+	/** Grace (ms) before the tip un-dims after leaving an emote, so gliding between emotes
+	 *  through the small gaps doesn't flash the tip back to full. */
+	private static final long HOVER_GRACE_MS = 150;
 	/** Per-frame easing factor for scale/opacity tweens (0..1; higher = snappier). */
 	private static final double ANIM_EASE = 0.60;
 	/** Ring size (auto-fitted to an ellipse and clamped to what the panel allows). */
@@ -143,6 +159,13 @@ public class EmoteWheelPlugin extends Plugin
 	/** Per-emote animated {scale, opacity}, eased toward their targets each frame. */
 	private final Map<Emote, double[]> anim = new HashMap<>();
 
+	/** Per-emote current animated {x, y} ring centre, eased toward its target each frame. */
+	private final Map<Emote, double[]> emotePos = new HashMap<>();
+
+	/** Order just committed by a drop, used until the live config catches up, so the
+	 *  layout never reverts to the pre-drop order for a frame (which caused a jump). */
+	private List<Emote> pendingOrder;
+
 	/** Tracks the left button so the hovered figure can dip while pressed. */
 	private final MouseListener pressListener = new MouseAdapter()
 	{
@@ -152,6 +175,19 @@ public class EmoteWheelPlugin extends Plugin
 			if (e.getButton() == MouseEvent.BUTTON1)
 			{
 				mousePressed = true;
+				// A left-press with the rearrange key held, inside the active wheel,
+				// begins a rearrange drag. Swallow it here so the emote under the cursor
+				// never performs; plain presses are left untouched so clicks work as before.
+				Rectangle vb = activeViewportBounds;
+				if (active && rearrangeHeld && vb != null && vb.contains(e.getPoint()))
+				{
+					shiftDragPress = true;
+					e.consume();
+				}
+				else
+				{
+					shiftDragPress = false;
+				}
 			}
 			return e;
 		}
@@ -162,6 +198,13 @@ public class EmoteWheelPlugin extends Plugin
 			if (e.getButton() == MouseEvent.BUTTON1)
 			{
 				mousePressed = false;
+				// If this release ends a drag, swallow it so the game doesn't also
+				// perform the emote under the cursor.
+				if (suppressClick)
+				{
+					suppressClick = false;
+					e.consume();
+				}
 			}
 			return e;
 		}
@@ -182,6 +225,42 @@ public class EmoteWheelPlugin extends Plugin
 		}
 	};
 
+	/** Tracks whether the configured rearrange key is physically held - drives the
+	 *  rearrange-mode affordances and gates the drag on whatever key the user chose. */
+	private final KeyListener rearrangeKeyListener = new KeyListener()
+	{
+		@Override
+		public void keyTyped(KeyEvent e)
+		{
+		}
+
+		@Override
+		public void keyPressed(KeyEvent e)
+		{
+			if (isRearrangeKey(e))
+			{
+				rearrangeHeld = true;
+			}
+		}
+
+		@Override
+		public void keyReleased(KeyEvent e)
+		{
+			if (isRearrangeKey(e))
+			{
+				rearrangeHeld = false;
+			}
+		}
+	};
+
+	private boolean isRearrangeKey(KeyEvent e)
+	{
+		Keybind kb = config.rearrangeKey();
+		// matches() correctly handles both key-pressed and key-released, and works for
+		// modifier-only binds (Shift) as well as regular keys.
+		return kb != null && kb.matches(e);
+	}
+
 	/** True while the wheel is active (favourites arranged). Toggled by the hotkey. */
 	@Getter private boolean active;
 
@@ -191,6 +270,44 @@ public class EmoteWheelPlugin extends Plugin
 	@Getter private double labelAlpha;
 	/** 0..1 fan-out entrance progress; 0 = figures stacked at centre, 1 = at the ring. */
 	private double entranceProgress;
+
+	/** Cached each frame on the client thread: is the player entering text right now?
+	 *  Read by the AWT hotkey listener so a letter hotkey types instead of toggling. */
+	private volatile boolean typing;
+
+	// --- Shift-drag to reorder (insert; snaps into place on drop) ---
+	/** Emote currently being dragged around the ring, or null. */
+	private Emote dragEmote;
+	/** True while a Shift-drag is in progress. */
+	private boolean dragging;
+	/** Latched by the mouse listener: the current left-press was a Shift-press inside the wheel. */
+	private volatile boolean shiftDragPress;
+	/** Set on the layout thread, read by the mouse listener to swallow the drag's release. */
+	private volatile boolean suppressClick;
+	/** Previous frame's press state, to detect press/release edges on the layout thread. */
+	private boolean prevMousePressed;
+	/** True while the configured rearrange key is physically held. */
+	private volatile boolean rearrangeHeld;
+	/** 0..1 eased alpha of the rearrange-mode frame stroke (fades in while the key is held
+	 *  OR a drag is in progress). */
+	@Getter private double rearrangeAlpha;
+
+	/** 0..1 eased alpha of the "Drag and Drop" centre prompt. Appears only after the key
+	 *  has been held a while, hides once a drag starts, and returns only after re-holding. */
+	@Getter private double dragLabelAlpha;
+
+	/** When the rearrange key was first held (ms), or 0 if not held; drives the tip delay. */
+	private long rearrangeHeldSince;
+	/** Set once a drag happens during a hold; keeps the tip hidden until the key is released. */
+	private boolean labelSuppressed;
+	/** When the tip actually began showing (ms), or 0; the overlay drives its typewriter
+	 *  timeline from this. Reset only after the fade-out finishes. */
+	@Getter private volatile long labelShowStart;
+
+	/** Eased 0..1 multiplier that dims the tip toward 50% while an emote is hovered. */
+	@Getter private double tipDim = 1.0;
+	/** Last time (ms) an emote was hovered; debounces the tip dim across the ring gaps. */
+	private long lastHoverTime;
 
 	/**
 	 * Cached original geometry keyed by widget identity:
@@ -212,7 +329,12 @@ public class EmoteWheelPlugin extends Plugin
 	private int preLayoutScrollY = -1;
 	private String lastLog = "";
 
-	private final HotkeyListener hotkeyListener = new HotkeyListener(() -> config.hotkey())
+	// While the chatbox is focused, hand back NOT_SET so the hotkey doesn't match. That
+	// stops HotkeyListener from firing AND from consuming the key, so a letter hotkey
+	// (e.g. "p") types normally while typing instead of toggling and being swallowed.
+	// The 'typing' flag is refreshed each frame on the client thread (valid varc reads).
+	private final HotkeyListener hotkeyListener = new HotkeyListener(
+			() -> typing ? Keybind.NOT_SET : config.hotkey())
 	{
 		@Override
 		public void hotkeyPressed()
@@ -252,6 +374,7 @@ public class EmoteWheelPlugin extends Plugin
 	{
 		overlayManager.add(overlay);
 		keyManager.registerKeyListener(hotkeyListener);
+		keyManager.registerKeyListener(rearrangeKeyListener);
 		mouseManager.registerMouseWheelListener(scrollBlocker);
 		mouseManager.registerMouseListener(pressListener);
 		// Restore the remembered on/off state from the previous session.
@@ -264,6 +387,7 @@ public class EmoteWheelPlugin extends Plugin
 	{
 		overlayManager.remove(overlay);
 		keyManager.unregisterKeyListener(hotkeyListener);
+		keyManager.unregisterKeyListener(rearrangeKeyListener);
 		mouseManager.unregisterMouseWheelListener(scrollBlocker);
 		mouseManager.unregisterMouseListener(pressListener);
 		active = false;
@@ -296,6 +420,10 @@ public class EmoteWheelPlugin extends Plugin
 	@Subscribe
 	public void onBeforeRender(BeforeRender e)
 	{
+		// Cache the typing state here (client thread) so the AWT-thread hotkey listener
+		// can read it cheaply and correctly when deciding whether to swallow the key.
+		typing = typingInChat();
+
 		// Drive the layout just before the client draws widgets, so the wheel is in
 		// place on the very frame the emote tab opens - no flash of the raw grid
 		// (an ABOVE_WIDGETS overlay would run after the draw and be one frame late).
@@ -477,11 +605,38 @@ public class EmoteWheelPlugin extends Plugin
 		return client.getWidget(InterfaceID.Emote.SCROLLABLE);
 	}
 
+	/** The whole emote interface panel (the visible bordered frame) - used for the
+	 *  rearrange-mode stroke, which should hug the frame, not the inner viewport. */
+	public Widget getEmoteFrame()
+	{
+		return client.getWidget(InterfaceID.Emote.UNIVERSE);
+	}
+
+
+
 	public boolean isTabOpen()
 	{
 		Widget c = getEmoteContainer();
 		Widget v = getEmoteViewport();
 		return c != null && !c.isHidden() && v != null && !v.isHidden();
+	}
+
+	/** True while the player is entering text - a public message, search, private
+	 *  message, enter-amount, etc. - so a key hotkey shouldn't fire and toggle the wheel. */
+	private boolean typingInChat()
+	{
+		// Meslayer inputs (search, PM, enter-amount, name entry) set a non-NONE mode.
+		if (client.getVarcIntValue(VarClientID.MESLAYERMODE) != InputType.NONE.getType())
+		{
+			return true;
+		}
+		// Public chat: the input line contains the typing cursor "*" whenever the chat is
+		// focused - even before any character is typed - and shows only the "Press Enter to
+		// Chat" placeholder (no cursor) when idle. The cursor is colour-tagged, so match on
+		// "contains" rather than "endsWith" (the raw text ends with a </col> tag).
+		Widget input = client.getWidget(InterfaceID.Chatbox.INPUT);
+		String txt = input == null ? null : input.getText();
+		return txt != null && txt.contains("*");
 	}
 
 	// ----------------------------------------------------------------- layout
@@ -544,12 +699,25 @@ public class EmoteWheelPlugin extends Plugin
 		}
 
 		List<Emote> wanted = new ArrayList<>();
-		wanted.add(config.slot1());
-		wanted.add(config.slot2());
-		wanted.add(config.slot3());
-		wanted.add(config.slot4());
-		wanted.add(config.slot5());
-		wanted.add(config.slot6());
+		if (pendingOrder != null)
+		{
+			// A drop just happened; use the committed order directly until the live
+			// config reflects it, so the layout never snaps back to the pre-drop order.
+			wanted.addAll(pendingOrder);
+			if (configMatchesPending())
+			{
+				pendingOrder = null;
+			}
+		}
+		else
+		{
+			wanted.add(config.slot1());
+			wanted.add(config.slot2());
+			wanted.add(config.slot3());
+			wanted.add(config.slot4());
+			wanted.add(config.slot5());
+			wanted.add(config.slot6());
+		}
 
 		// Remove duplicates while preserving order, then drop "None".
 		wanted = new ArrayList<>(new LinkedHashSet<>(wanted));
@@ -579,6 +747,12 @@ public class EmoteWheelPlugin extends Plugin
 				hoveredEmote = hs.getEmote();
 			}
 		}
+
+		// Drag-to-reorder input, evaluated here (client thread) against LAST frame's
+		// segments before they're cleared. Press over an emote arms a drag; moving
+		// past the threshold makes it a real drag (and swallows the ending click);
+		// releasing while dragging reorders the slots.
+		handleDragInput(mp);
 
 		segments.clear();
 
@@ -699,6 +873,75 @@ public class EmoteWheelPlugin extends Plugin
 
 		int n = placed.size();
 
+		// Rearrange mode = Shift held, OR a drag already in progress (so releasing Shift
+		// mid-grab keeps the fade + stroke until the emote is dropped). Ease the frame
+		// stroke's alpha toward it so the indicator fades in/out quickly.
+		boolean rearrangeMode = rearrangeHeld || dragging;
+		rearrangeAlpha += ((rearrangeMode ? 1.0 : 0.0) - rearrangeAlpha) * REARRANGE_EASE;
+
+		// Delayed "Drag and Drop" helper tip: fades in only after the key has been held a
+		// short while, hides the moment a drag starts, and won't return until the key is
+		// released and held again.
+		long now = System.currentTimeMillis();
+		if (!rearrangeHeld)
+		{
+			rearrangeHeldSince = 0;
+			labelSuppressed = false;
+		}
+		else
+		{
+			if (rearrangeHeldSince == 0)
+			{
+				rearrangeHeldSince = now;
+			}
+			if (dragging)
+			{
+				labelSuppressed = true;
+			}
+		}
+		// Show the tip until the player has done a rearrange (tutorial complete), or always
+		// if they opted in with the toggle.
+		boolean showLabel = (config.showDragTip() || !config.tutorialDone())
+				&& rearrangeHeld && !dragging && !labelSuppressed
+				&& rearrangeHeldSince != 0 && (now - rearrangeHeldSince) >= LABEL_DELAY_MS;
+		dragLabelAlpha += ((showLabel ? 1.0 : 0.0) - dragLabelAlpha) * REARRANGE_EASE;
+		if (showLabel)
+		{
+			if (labelShowStart == 0)
+			{
+				labelShowStart = now;
+			}
+		}
+		else if (dragLabelAlpha < 0.02)
+		{
+			// Reset the typewriter only after the fade-out finishes, so it doesn't
+			// flicker back to the first letter while fading.
+			labelShowStart = 0;
+		}
+		// Dim the tip toward 50% while an emote is hovered, so it's less in the way. A short
+		// grace keeps it dimmed while gliding between emotes (through the ring's dead gaps),
+		// only un-dimming once the cursor is genuinely off for a beat.
+		if (hoveredEmote != null)
+		{
+			lastHoverTime = now;
+		}
+		boolean dimActive = hoveredEmote != null || (now - lastHoverTime) < HOVER_GRACE_MS;
+		tipDim += ((dimActive ? 0.5 : 1.0) - tipDim) * REARRANGE_EASE;
+
+		// While dragging, which ring index is the drop aimed at right now? Used below
+		// to keep that slot brighter than the faded others so the target is readable.
+		int dropTargetIndex = dragging ? nearestRingIndex(mp, n) : -1;
+
+		// The other emotes hold their positions during a drag (no live reflow) - you
+		// just hover over the slot you want, which is highlighted. Only after the drop
+		// does the committed order take over and everything slides into place. Keeping
+		// the drag-time and drop-time layouts from fighting is what makes the drop clean.
+		int[] targetIdx = new int[n];
+		for (int i = 0; i < n; i++)
+		{
+			targetIdx[i] = i;
+		}
+
 		// Pair each artwork widget to exactly one owning button (the placed button
 		// whose ORIGINAL rectangle contains the artwork's centre point; nearest
 		// centre wins on overlap). One owner each, so a neighbour's figure can no
@@ -786,12 +1029,61 @@ public class EmoteWheelPlugin extends Plugin
 			double phase = (n > 1) ? (double) i / n : 0.0;
 			double localT = Math.max(0.0, Math.min(1.0,
 					(ent - phase * entStagger) / (1.0 - entStagger)));
-			double spiralAngle = ang[i] - (1.0 - localT) * entTurns * (2 * Math.PI);
-			int centreX = (int) Math.round(cx + Math.cos(spiralAngle) * rx * localT) + RING_OFFSET_X;
-			int centreY = (int) Math.round(cy + Math.sin(spiralAngle) * ry * localT);
+			// Target centre this emote should occupy: the picked-up emote follows the
+			// cursor; everyone else heads for their (possibly reflowed) ring spot so a
+			// gap opens where the drag will drop.
+			boolean isDragged = dragging && p.emote == dragEmote && mp != null;
+			double targetCX;
+			double targetCY;
+			if (isDragged)
+			{
+				targetCX = mp.getX() - container.getCanvasLocation().getX();
+				targetCY = mp.getY() - container.getCanvasLocation().getY();
+			}
+			else
+			{
+				targetCX = px[targetIdx[i]] + RING_OFFSET_X;
+				targetCY = py[targetIdx[i]];
+			}
+
+			double ecx;
+			double ecy;
+			if (localT < 0.999 && !isDragged)
+			{
+				// Still entering: the spiral drives the position; keep the eased centre
+				// synced to it so the handoff to easing is seamless once entrance ends.
+				double spiralAngle = ang[i] - (1.0 - localT) * entTurns * (2 * Math.PI);
+				ecx = cx + Math.cos(spiralAngle) * rx * localT + RING_OFFSET_X;
+				ecy = cy + Math.sin(spiralAngle) * ry * localT;
+				emotePos.put(p.emote, new double[]{ecx, ecy});
+			}
+			else if (isDragged)
+			{
+				// Dragged figure tracks the cursor tightly (no lag).
+				ecx = targetCX;
+				ecy = targetCY;
+				emotePos.put(p.emote, new double[]{ecx, ecy});
+			}
+			else
+			{
+				// Steady state / reflow: glide toward the target ring spot.
+				double[] pp = emotePos.get(p.emote);
+				if (pp == null)
+				{
+					pp = new double[]{targetCX, targetCY};
+					emotePos.put(p.emote, pp);
+				}
+				pp[0] += (targetCX - pp[0]) * POS_EASE;
+				pp[1] += (targetCY - pp[1]) * POS_EASE;
+				ecx = pp[0];
+				ecy = pp[1];
+			}
+
 			// Never allow a forced position of -1: that is the sentinel that CLEARS
 			// the forced position, snapping the widget back to its default (centred)
 			// spot. Clamping to >= 0 keeps figures pinned as they scale / shift.
+			int centreX = (int) Math.round(ecx);
+			int centreY = (int) Math.round(ecy);
 			int x = Math.max(0, centreX - targetW / 2);
 			int y = Math.max(0, centreY - targetH / 2);
 
@@ -829,6 +1121,17 @@ public class EmoteWheelPlugin extends Plugin
 				targetScale *= PRESS_SCALE;
 			}
 			double targetOpacity = (hoveredEmote != null && !hovered) ? FADE_OPACITY : 0.0;
+			// Holding the rearrange key with nothing hovered dims everything, signalling
+			// rearrange mode; hovering one brings it back so you see your grab target.
+			if (rearrangeMode && hoveredEmote == null)
+			{
+				targetOpacity = ICON_FADE_OPACITY;
+			}
+			// Bring the drop-target slot mostly back so it's clear where the drag lands.
+			if (dragging && i == dropTargetIndex)
+			{
+				targetOpacity = FADE_OPACITY * 0.25;
+			}
 
 			// Ease scale and opacity toward their targets so hover / press / fade
 			// transitions glide instead of snapping.
@@ -1178,8 +1481,24 @@ public class EmoteWheelPlugin extends Plugin
 	{
 		activeViewportBounds = null;
 		anim.clear();
+		emotePos.clear();
+		pendingOrder = null;
 		labelAlpha = 0;
+		dragLabelAlpha = 0;
+		rearrangeHeldSince = 0;
+		labelSuppressed = false;
+		labelShowStart = 0;
+		tipDim = 1.0;
+		lastHoverTime = 0;
 		entranceProgress = 0;
+
+		// Drop any in-progress drag so it can't carry across a toggle.
+		dragEmote = null;
+		dragging = false;
+		suppressClick = false;
+		shiftDragPress = false;
+		prevMousePressed = false;
+		rearrangeAlpha = 0;
 
 		Widget scrollbar = client.getWidget(InterfaceID.Emote.SCROLLBAR);
 		if (scrollbar != null)
@@ -1284,6 +1603,177 @@ public class EmoteWheelPlugin extends Plugin
 			}
 		}
 		return best;
+	}
+
+	// ----------------------------------------------------------- drag reorder
+
+	/**
+	 * Shift-drag reorder state machine. Runs on the layout thread each frame using
+	 * the shared {@link #mousePressed}/{@link #shiftDragPress} flags and the cursor,
+	 * so it never touches widgets off the client thread. Plain clicks are never
+	 * intercepted, so they perform emotes exactly as before.
+	 */
+	private void handleDragInput(Point cursor)
+	{
+		boolean pressedNow = mousePressed;
+
+		if (pressedNow && !prevMousePressed)
+		{
+			// Press edge: a drag begins only on a Shift+left-press that landed on a ring
+			// emote. That press was already swallowed by the mouse listener, so no emote
+			// performs. Plain presses arm nothing and click through as normal.
+			Segment hit = (shiftDragPress && cursor != null)
+					? segmentAt(cursor.getX(), cursor.getY()) : null;
+			if (hit != null)
+			{
+				dragEmote = hit.getEmote();
+				dragging = true;
+				suppressClick = true;
+			}
+			else
+			{
+				dragEmote = null;
+				dragging = false;
+			}
+		}
+		else if (!pressedNow && prevMousePressed)
+		{
+			// Release edge: a drag drops into the nearest ring position.
+			if (dragging && dragEmote != null && cursor != null)
+			{
+				reorderByDrop(dragEmote, cursor);
+			}
+			dragEmote = null;
+			dragging = false;
+		}
+
+		prevMousePressed = pressedNow;
+	}
+
+	/**
+	 * Moves the dragged emote to the ring position nearest the drop point, shifting
+	 * the others to make room, then writes the new order back to slots 1..N.
+	 */
+	private void reorderByDrop(Emote dragged, Point drop)
+	{
+		if (segments.size() < 2)
+		{
+			return;
+		}
+
+		List<Emote> order = new ArrayList<>();
+		for (Segment s : segments)
+		{
+			order.add(s.getEmote());
+		}
+		int n = order.size();
+		if (!order.contains(dragged))
+		{
+			return;
+		}
+
+		int k = nearestRingIndex(drop, n);
+		if (k < 0)
+		{
+			return;
+		}
+
+		if (config.dragMode() == DragMode.SWAP)
+		{
+			// Swap: the dragged emote and whatever sits at the drop slot trade places;
+			// nothing else moves.
+			int s = order.indexOf(dragged);
+			if (s >= 0 && k < order.size() && k != s)
+			{
+				Collections.swap(order, s, k);
+			}
+		}
+		else
+		{
+			// Move: the dragged emote drops into the slot; the rest shift to make room.
+			order.remove(dragged);
+			order.add(Math.min(k, order.size()), dragged);
+		}
+
+		// Persist: slots 1..N take the new order, any leftover slots become None.
+		for (int i = 0; i < 6; i++)
+		{
+			Emote val = (i < order.size()) ? order.get(i) : Emote.NONE;
+			configManager.setConfiguration(EmoteWheelConfig.GROUP, "slot" + (i + 1), val);
+		}
+
+		// Drive the layout from this committed order until the config write propagates.
+		pendingOrder = new ArrayList<>(order);
+
+		// First successful rearrange completes the tutorial, so the tip stops auto-showing.
+		if (!config.tutorialDone())
+		{
+			configManager.setConfiguration(EmoteWheelConfig.GROUP, "tutorialDone", true);
+		}
+	}
+
+	/** True once the live config matches the just-dropped order (config has caught up). */
+	private boolean configMatchesPending()
+	{
+		if (pendingOrder == null)
+		{
+			return true;
+		}
+		for (int i = 0; i < 6; i++)
+		{
+			Emote want = (i < pendingOrder.size()) ? pendingOrder.get(i) : Emote.NONE;
+			if (slotConfig(i + 1) != want)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * The ring index (0..n-1) whose evenly-spaced angle is nearest the given canvas
+	 * point, measured from the viewport centre. -1 if the viewport isn't available.
+	 * Shared by the drop (where to insert) and the live drop-target highlight.
+	 */
+	private int nearestRingIndex(Point cursor, int n)
+	{
+		Widget viewport = getEmoteViewport();
+		if (viewport == null || cursor == null || n < 1)
+		{
+			return -1;
+		}
+		int vcx = viewport.getCanvasLocation().getX() + viewport.getWidth() / 2;
+		int vcy = viewport.getCanvasLocation().getY() + viewport.getHeight() / 2;
+		double theta = Math.atan2(cursor.getY() - vcy, cursor.getX() - vcx);
+
+		int k = 0;
+		double best = Double.MAX_VALUE;
+		for (int i = 0; i < n; i++)
+		{
+			double a = (2 * Math.PI * i / n) - (Math.PI / 2);
+			double d = Math.abs(angleDelta(theta, a));
+			if (d < best)
+			{
+				best = d;
+				k = i;
+			}
+		}
+		return k;
+	}
+
+	/** Smallest signed difference between two angles, in radians (-PI..PI). */
+	private static double angleDelta(double a, double b)
+	{
+		double d = a - b;
+		while (d > Math.PI)
+		{
+			d -= 2 * Math.PI;
+		}
+		while (d < -Math.PI)
+		{
+			d += 2 * Math.PI;
+		}
+		return d;
 	}
 
 	// -------------------------------------------------------------- debugging

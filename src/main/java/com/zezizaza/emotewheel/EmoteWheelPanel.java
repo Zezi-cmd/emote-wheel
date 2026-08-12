@@ -77,6 +77,10 @@ class EmoteWheelPanel extends PluginPanel
 
 	private static final Font FONT = FontManager.getRunescapeBoldFont().deriveFont(FONT_SIZE);
 
+	/** Pointing hand on the buttons, the move/cross cursor on the drag handle. */
+	private static final Cursor POINT = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR);
+	private static final Cursor MOVE = Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR);
+
 	private final EmoteWheelConfig config;
 	private final ConfigManager configManager;
 
@@ -151,10 +155,17 @@ class EmoteWheelPanel extends PluginPanel
 		});
 		this.revealTimer = rv;
 
-		JLabel title = new JLabel("Emote Wheel : Favorites");
+		JLabel title = new JLabel("Emote Wheel");
 		title.setFont(FontManager.getRunescapeBoldFont().deriveFont(FONT_SIZE));
 		title.setForeground(Color.WHITE);
 		add(title);
+
+		add(Box.createVerticalStrut(8));
+
+		JLabel favorites = new JLabel("Favorites");
+		favorites.setFont(FontManager.getRunescapeBoldFont());
+		favorites.setForeground(ColorScheme.BRAND_ORANGE);
+		add(favorites);
 
 		// One vertical stack of slot rows; the picker is inserted between rows on demand,
 		// so opening it pushes the rows below down (BoxLayout honours the animated height).
@@ -168,6 +179,18 @@ class EmoteWheelPanel extends PluginPanel
 			stack.add(Box.createVerticalStrut(STRUT));
 		}
 		add(stack);
+
+		add(Box.createVerticalStrut(8));
+
+		JLabel presets = new JLabel("Presets");
+		presets.setFont(FontManager.getRunescapeBoldFont());
+		presets.setForeground(ColorScheme.BRAND_ORANGE);
+		add(presets);
+
+		JLabel comingSoon = new JLabel("coming soon");
+		comingSoon.setFont(FontManager.getRunescapeSmallFont());
+		comingSoon.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		add(comingSoon);
 
 		optionList.setLayout(new BoxLayout(optionList, BoxLayout.Y_AXIS));
 		optionList.setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -375,6 +398,7 @@ class EmoteWheelPanel extends PluginPanel
 		private final int index;
 		private boolean selected;
 		private boolean hover;
+		private boolean handleHover;
 		private float dim = 1f;
 		private float dimTarget = 1f;
 
@@ -386,7 +410,7 @@ class EmoteWheelPanel extends PluginPanel
 		{
 			this.index = index;
 			setOpaque(false);
-			setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			setCursor(POINT);
 			setPreferredSize(new Dimension(0, SLOT_H));
 			setMaximumSize(new Dimension(Integer.MAX_VALUE, SLOT_H));
 
@@ -411,7 +435,23 @@ class EmoteWheelPanel extends PluginPanel
 				public void mouseExited(MouseEvent e)
 				{
 					hover = false;
+					handleHover = false;
+					setCursor(POINT);
 					repaint();
+				}
+
+				@Override
+				public void mouseMoved(MouseEvent e)
+				{
+					// Light up the grab handle and show the open-hand grab cursor while the
+					// cursor is over the three lines; the pointing hand elsewhere on the row.
+					boolean onHandle = e.getX() < HANDLE_W;
+					if (onHandle != handleHover)
+					{
+						handleHover = onHandle;
+						setCursor(onHandle ? MOVE : POINT);
+						repaint();
+					}
 				}
 
 				@Override
@@ -421,6 +461,7 @@ class EmoteWheelPanel extends PluginPanel
 							&& Math.abs(e.getY() - pressAt.y) > DRAG_THRESHOLD)
 					{
 						dragging = true;
+						setCursor(MOVE);
 						closeInstant();
 					}
 					if (dragging)
@@ -445,6 +486,8 @@ class EmoteWheelPanel extends PluginPanel
 					}
 					dragging = false;
 					pressAt = null;
+					// Back to the open hand if we're still over the handle, else pointing hand.
+					setCursor(e.getX() < HANDLE_W ? MOVE : POINT);
 				}
 			};
 			addMouseListener(ma);
@@ -509,8 +552,10 @@ class EmoteWheelPanel extends PluginPanel
 			}
 
 			// Drag handle: three short lines on the left. Only a press here starts a drag.
-			g2.setColor(ColorScheme.LIGHT_GRAY_COLOR);
-			g2.setStroke(new BasicStroke(2f));
+			// Lights up white and thicker while the cursor is over it, separate from the
+			// row's own hover highlight.
+			g2.setColor(handleHover ? Color.WHITE : ColorScheme.LIGHT_GRAY_COLOR);
+			g2.setStroke(new BasicStroke(handleHover ? 2.6f : 2f));
 			int hcy = h / 2;
 			g2.drawLine(6, hcy - 5, HANDLE_W - 6, hcy - 5);
 			g2.drawLine(6, hcy, HANDLE_W - 6, hcy);
@@ -549,7 +594,7 @@ class EmoteWheelPanel extends PluginPanel
 			setMaximumSize(new Dimension(Integer.MAX_VALUE, OPTION_H));
 			if (!disabled)
 			{
-				setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+				setCursor(POINT);
 			}
 			addMouseListener(new MouseAdapter()
 			{

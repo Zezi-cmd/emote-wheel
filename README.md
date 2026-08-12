@@ -5,9 +5,6 @@ Choose up to six favorite emotes (plus an optional **Random** slot) and perform 
 a clean ring. Every click is a genuine click on a genuine RuneScape emote widget, with no
 synthetic input.
 
-On the Resizable - Modern layout you can also **hide the panel background** so the emotes
-float on their own, and manage your favorites from a dedicated **side panel**.
-
 <img width="640" alt="Floating emote wheel" src="images/floating.png" />
 
 ## Features
@@ -38,18 +35,27 @@ float on their own, and manage your favorites from a dedicated **side panel**.
 
 ## The Favorites side panel
 
+<table>
+<tr>
+<td valign="top">
+
 Open the **Emote Wheel** panel from its sidebar icon to build your wheel. Each of the six
 slots is a button - tap one and a list of emotes slides in below it. Pick an emote and the
 list slides closed. Emotes already used in another slot are greyed out, so you can never
 double up. Grab the handle on the left of a slot to drag it and reorder the wheel.
 
-<img width="240" align="right" alt="Favorites side panel" src="images/panel.png" />
-
 You can also set favorites straight from the emote tab: right-click an emote and choose
 **Favorite** to drop it into the first open slot (or pick a slot to replace when all six
 are full). With the wheel open, right-click gives **Remove** to clear a slot.
 
-<img width="640" alt="Right-click to favorite" src="images/favorite.png" />
+</td>
+<td valign="top" width="250">
+<img width="240" alt="Favorites side panel" src="images/panel.png" />
+</td>
+</tr>
+</table>
+
+<img width="700" alt="Right-click to favorite" src="images/favorite.png" />
 
 ## Rearranging the wheel
 
@@ -59,14 +65,6 @@ rearrange.
 
 <img width="640" alt="Rearrange mode" src="images/rearrange.png" />
 
-## Making the emotes bigger
-
-The emote wheel uses the game's real emote widgets, so its size follows the emote panel.
-If you would like the whole interface (emotes included) larger, use the **Stretched Mode**
-plugin, which scales the entire game UI to your window. Combined with **Hide panel
-background** on Resizable - Modern, a bit of upscaling makes for a clean, oversized set of
-floating emotes.
-
 ## Client layouts
 
 The floating look (hidden background, offset wheel) is built for the **Resizable - Modern**
@@ -75,6 +73,15 @@ clean, centered wheel on the normal panel, and the "Hide panel background" optio
 effect there. It all switches automatically when you change your client layout.
 
 <img width="700" alt="The wheel across the client layouts" src="images/layouts.png" />
+
+## Making the emotes bigger
+
+The emote wheel uses the game's real emote widgets, so its size follows the emote panel.
+If you would like the whole interface (emotes included) larger, use the
+[**Stretched Mode**](https://github.com/runelite/runelite/wiki/Stretched-Mode) plugin,
+which scales the entire game UI to your window. Combined with **Hide panel background** on
+Resizable - Modern, a bit of upscaling makes for a clean, oversized set of floating
+emotes.
 
 ## Usage
 

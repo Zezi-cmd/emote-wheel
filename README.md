@@ -33,6 +33,15 @@ synthetic input.
   instead of simulating clicks or input, and restores the original interface whenever it
   is disabled.
 
+## Client layouts
+
+The floating look (hidden background) is built for the **Resizable - Modern** layout. On
+**Resizable - Classic** and **Fixed - Classic** the plugin falls back to a clean, centered
+wheel on the normal panel, and the "Hide panel background" option has no effect there. It
+all switches automatically when you change your client layout.
+
+<img width="700" alt="The wheel across the client layouts" src="images/layouts.png" />
+
 ## The Favorites side panel
 
 <img width="240" align="right" alt="Favorites side panel" src="images/panel.png" />
@@ -92,15 +101,6 @@ emotes.
   on the Resizable - Modern layout; Classic and Fixed keep the normal panel.
 
 <br clear="all" />
-
-## Client layouts
-
-The floating look (hidden background) is built for the **Resizable - Modern**
-layout. On **Resizable - Classic** and **Fixed - Classic** the plugin falls back to a
-clean, centered wheel on the normal panel, and the "Hide panel background" option has no
-effect there. It all switches automatically when you change your client layout.
-
-<img width="700" alt="The wheel across the client layouts" src="images/layouts.png" />
 
 ## Notes
 

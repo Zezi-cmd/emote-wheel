@@ -38,9 +38,6 @@ public interface EmoteWheelConfig extends Config
 	@ConfigSection(name = "Input", description = "How the wheel is toggled", position = 0)
 	String inputSection = "input";
 
-	@ConfigSection(name = "Layout", description = "Which emotes appear on the wheel", position = 1)
-	String layoutSection = "layout";
-
 
 	// ------------------------------------------------------------------ input
 
@@ -111,6 +108,20 @@ public interface EmoteWheelConfig extends Config
 		return false;
 	}
 
+	@ConfigItem(
+			keyName = "hidePanelBackground",
+			name = "Hide panel background",
+			description = "While the wheel is open, hide the emote panel's background and frame "
+					+ "graphics so the emotes appear to float. The emote buttons stay. Works best "
+					+ "with a detached/movable emote panel.",
+			section = inputSection,
+			position = 5
+	)
+	default boolean hidePanelBackground()
+	{
+		return true;
+	}
+
 	/** Internal: set true the first time the player completes a rearrange, which hides the tip. */
 	@ConfigItem(
 			keyName = "tutorialDone",
@@ -130,7 +141,7 @@ public interface EmoteWheelConfig extends Config
 			name = "Slot 1",
 			description = "Top of the wheel. The remaining slots fill clockwise. Set a slot to "
 					+ "None to leave it out, or Random for a slot that lands on a random emote.",
-			section = layoutSection,
+			hidden = true,
 			position = 0
 	)
 	default Emote slot1()
@@ -142,7 +153,7 @@ public interface EmoteWheelConfig extends Config
 			keyName = "slot2",
 			name = "Slot 2",
 			description = "",
-			section = layoutSection,
+			hidden = true,
 			position = 1
 	)
 	default Emote slot2()
@@ -154,7 +165,7 @@ public interface EmoteWheelConfig extends Config
 			keyName = "slot3",
 			name = "Slot 3",
 			description = "",
-			section = layoutSection,
+			hidden = true,
 			position = 2
 	)
 	default Emote slot3()
@@ -166,7 +177,7 @@ public interface EmoteWheelConfig extends Config
 			keyName = "slot4",
 			name = "Slot 4",
 			description = "",
-			section = layoutSection,
+			hidden = true,
 			position = 3
 	)
 	default Emote slot4()
@@ -178,7 +189,7 @@ public interface EmoteWheelConfig extends Config
 			keyName = "slot5",
 			name = "Slot 5",
 			description = "",
-			section = layoutSection,
+			hidden = true,
 			position = 4
 	)
 	default Emote slot5()
@@ -190,7 +201,7 @@ public interface EmoteWheelConfig extends Config
 			keyName = "slot6",
 			name = "Slot 6",
 			description = "",
-			section = layoutSection,
+			hidden = true,
 			position = 5
 	)
 	default Emote slot6()

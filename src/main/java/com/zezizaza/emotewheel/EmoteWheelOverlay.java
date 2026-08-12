@@ -53,6 +53,9 @@ public class EmoteWheelOverlay extends Overlay
 
 	// Tuned appearance values for the rearrange-mode frame stroke and centre prompt.
 	private static final int LABEL_OFFSET_X = 3;
+	/** Baked-in nudge of the centre rearrange text, tuned for the floating look. */
+	private static final int TIP_OFFSET_X = -4;
+	private static final int TIP_OFFSET_Y = 28;
 	private static final int STROKE_THICKNESS = 2;
 	private static final int STROKE_OPACITY = 110;
 	private static final float LABEL_FONT_SIZE = 16f;
@@ -67,11 +70,13 @@ public class EmoteWheelOverlay extends Overlay
 	private static final long LOOP_PAUSE_MS = 900;
 
 	private final EmoteWheelPlugin plugin;
+	private final EmoteWheelConfig config;
 
 	@Inject
-	EmoteWheelOverlay(EmoteWheelPlugin plugin)
+	EmoteWheelOverlay(EmoteWheelPlugin plugin, EmoteWheelConfig config)
 	{
 		this.plugin = plugin;
+		this.config = config;
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.ABOVE_WIDGETS);
 	}
@@ -94,8 +99,10 @@ public class EmoteWheelOverlay extends Overlay
 
 		// Rearrange-mode frame stroke, on the whole panel frame (UNIVERSE), square
 		// corners. Thickness and max opacity are tunable while dialing the effect in.
+		// The outline only makes sense framing the panel background, so hide it when the
+		// background is hidden (floating emotes) - otherwise it's a stray rectangle.
 		double ra = plugin.getRearrangeAlpha();
-		if (ra > 0.02)
+		if (ra > 0.02 && !config.hidePanelBackground())
 		{
 			Widget frame = plugin.getEmoteFrame();
 			if (frame != null)
@@ -116,12 +123,13 @@ public class EmoteWheelOverlay extends Overlay
 
 		// Centred label: the typewriter "Drag and Drop / Emotes to rearrange" tip while the
 		// rearrange key is held (fades out once a drag starts), else the Random hover label.
-		int cx = vx + vw / 2;
+		int cx = vx + vw / 2 + TIP_OFFSET_X;
+		int cyTip = vy + vh / 2 + TIP_OFFSET_Y;
 		double dla = plugin.getDragLabelAlpha();
 		long start = plugin.getLabelShowStart();
 		if (dla > 0.02 && start != 0)
 		{
-			drawTypewriterTip(g, cx, vy + vh / 2, System.currentTimeMillis() - start, dla * LABEL_MAX_ALPHA * plugin.getTipDim());
+			drawTypewriterTip(g, cx, cyTip, System.currentTimeMillis() - start, dla * LABEL_MAX_ALPHA * plugin.getTipDim());
 		}
 		else
 		{

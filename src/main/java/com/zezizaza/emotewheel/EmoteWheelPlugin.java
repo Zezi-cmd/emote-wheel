@@ -54,10 +54,12 @@ import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.vars.InputType;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetSizeMode;
+import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.config.Keybind;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseAdapter;
@@ -66,8 +68,11 @@ import net.runelite.client.input.MouseManager;
 import net.runelite.client.input.MouseWheelListener;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.HotkeyListener;
+import net.runelite.client.util.ImageUtil;
 
 @Slf4j
 @PluginDescriptor(
@@ -108,8 +113,12 @@ public class EmoteWheelPlugin extends Plugin
 	private static final double HOVER_SCALE = 1.18;
 	/** Pixel nudge of the hovered figure. */
 	private static final int HOVER_OFFSET_X = -1;
-	/** Pixel shift of the whole ring (compensates the scrollbar gutter). */
-	private static final int RING_OFFSET_X = -1;
+	/** Pixel shift of the whole ring. 0 now that the ring centres in the full panel width
+	 *  (the scrollbar gutter is reclaimed in the usable-width calc, not nudged around). */
+	private static final int RING_OFFSET_X = 0;
+	/** Baked-in nudge of the wheel centre within the viewport, tuned for the floating look. */
+	private static final int WHEEL_OFFSET_X = -5;
+	private static final int WHEEL_OFFSET_Y = 25;
 	/** Transparency applied to non-hovered figures when something is hovered (0=opaque, 255=clear). */
 	private static final int FADE_OPACITY = 130;
 	/** Per-frame ease for the rearrange-mode frame stroke fade (higher = quicker). */
@@ -142,8 +151,13 @@ public class EmoteWheelPlugin extends Plugin
 	@Inject private MouseManager mouseManager;
 	@Inject private ConfigManager configManager;
 	@Inject private OverlayManager overlayManager;
+	@Inject private ClientToolbar clientToolbar;
 	@Inject private EmoteWheelConfig config;
 	@Inject private EmoteWheelOverlay overlay;
+
+	/** The custom slot-editor side panel and its toolbar button. */
+	private EmoteWheelPanel panel;
+	private NavigationButton navButton;
 
 	/**
 	 * Canvas bounds of the emote viewport while the wheel is active, or null when
@@ -377,6 +391,19 @@ public class EmoteWheelPlugin extends Plugin
 		keyManager.registerKeyListener(rearrangeKeyListener);
 		mouseManager.registerMouseWheelListener(scrollBlocker);
 		mouseManager.registerMouseListener(pressListener);
+
+		// Custom slot editor in the sidebar. It gatekeeps duplicates visually, which the
+		// auto-generated config dropdowns cannot do (the config panel never refreshes a
+		// value change from code), so slot editing lives here instead.
+		panel = new EmoteWheelPanel(config, configManager);
+		navButton = NavigationButton.builder()
+				.tooltip("Emote Wheel")
+				.icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
+				.priority(7)
+				.panel(panel)
+				.build();
+		clientToolbar.addNavigation(navButton);
+
 		// Restore the remembered on/off state from the previous session.
 		active = Boolean.TRUE.equals(
 				configManager.getConfiguration(EmoteWheelConfig.GROUP, "active", Boolean.class));
@@ -390,10 +417,17 @@ public class EmoteWheelPlugin extends Plugin
 		keyManager.unregisterKeyListener(rearrangeKeyListener);
 		mouseManager.unregisterMouseWheelListener(scrollBlocker);
 		mouseManager.unregisterMouseListener(pressListener);
+		if (navButton != null)
+		{
+			clientToolbar.removeNavigation(navButton);
+			navButton = null;
+		}
+		panel = null;
 		active = false;
 		activeViewportBounds = null;
 		clientThread.invoke(this::restoreAll);
 	}
+
 
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged e)
@@ -430,9 +464,29 @@ public class EmoteWheelPlugin extends Plugin
 		tickLayout();
 	}
 
-	// Config changes need no handler: applyLayout reads the live config every
+	// The LAYOUT needs no config handler: applyLayout reads the live config every
 	// frame, so slot edits are picked up on the next frame without a
 	// restore-then-reapply, which used to flash the whole grid mid-edit.
+
+	/**
+	 * Keeps the side panel's combos in sync when a slot changes from somewhere else - a
+	 * right-click Favorite/Remove or a drag reorder. Duplicate prevention itself lives in
+	 * the panel (it rejects a duplicate pick visually); right-click and drag never produce
+	 * duplicates, so there is nothing to reconcile here beyond refreshing the display.
+	 */
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!EmoteWheelConfig.GROUP.equals(event.getGroup()))
+		{
+			return;
+		}
+		String key = event.getKey();
+		if (key != null && key.startsWith("slot") && panel != null)
+		{
+			panel.refresh();
+		}
+	}
 
 	/**
 	 * Adds a right-click option to emotes in the emote tab. With the wheel OFF it is
@@ -464,25 +518,61 @@ public class EmoteWheelPlugin extends Plugin
 		{
 			// On the wheel: offer to remove this emote's slot. Resolve it from the
 			// segment so the Random slot (whose widget is a cycling stand-in) is
-			// removed correctly rather than the stand-in emote.
+			// removed correctly rather than the stand-in emote. If the emote is NOT
+			// on the wheel (e.g. the wheel is empty), fall through to Favorite so it
+			// can still be added.
 			Segment seg = segmentForWidget(emoteEntry.getWidget());
-			if (seg == null)
+			if (seg != null)
 			{
+				Emote toRemove = seg.getEmote();
+				client.getMenu().createMenuEntry(1)
+						.setOption("Remove")
+						.setTarget(emoteTarget(emoteEntry, toRemove))
+						.setType(MenuAction.RUNELITE)
+						.onClick(e -> removeFromSlots(toRemove));
 				return;
 			}
-			Emote toRemove = seg.getEmote();
-			client.getMenu().createMenuEntry(1)
-					.setOption("Remove")
-					.setTarget(emoteTarget(emoteEntry, toRemove))
-					.setType(MenuAction.RUNELITE)
-					.onClick(e -> removeFromSlots(toRemove));
-			return;
 		}
 
-		// Off the wheel: offer to favourite this emote into a slot.
+		// Off the wheel (or wheel empty): offer to favourite this emote into a slot.
 		Emote emote = emoteByName(buttonLabel(emoteEntry.getWidget()));
 		if (emote == null)
 		{
+			return;
+		}
+
+		// Already assigned to a slot? Don't offer Favorite at all - an emote lives in
+		// at most one slot, so there's nothing to add. (Use Remove, or drag, instead.)
+		for (int slot = 1; slot <= 6; slot++)
+		{
+			if (slotConfig(slot) == emote)
+			{
+				return;
+			}
+		}
+
+		// If any slot is open, one click on "Favorite" fills the first empty one - no
+		// need to drill into a submenu. Only when every slot is taken do we show the
+		// submenu, so you can pick which existing emote to replace.
+		int firstEmpty = 0;
+		for (int slot = 1; slot <= 6; slot++)
+		{
+			if (slotConfig(slot) == Emote.NONE)
+			{
+				firstEmpty = slot;
+				break;
+			}
+		}
+
+		if (firstEmpty != 0)
+		{
+			final int target = firstEmpty;
+			client.getMenu().createMenuEntry(1)
+					.setOption("Favorite")
+					.setTarget(emoteTarget(emoteEntry, emote))
+					.setType(MenuAction.RUNELITE)
+					.onClick(e -> configManager.setConfiguration(
+							EmoteWheelConfig.GROUP, "slot" + target, emote));
 			return;
 		}
 
@@ -662,6 +752,7 @@ public class EmoteWheelPlugin extends Plugin
 		try
 		{
 			applyLayout();
+			applyPanelBackground();
 			layoutErrored = false;
 		}
 		catch (Exception ex)
@@ -730,6 +821,10 @@ public class EmoteWheelPlugin extends Plugin
 				restoreAll();
 				segments.clear();
 			}
+			// Emptying the wheel drops back to classic view. Deactivate so it stays
+			// there: favouriting an emote afterwards must NOT re-open the wheel on its
+			// own - only the hotkey brings it back.
+			active = false;
 			return;
 		}
 
@@ -961,10 +1056,27 @@ public class EmoteWheelPlugin extends Plugin
 			iconH = Math.max(iconH, o[3]);
 		}
 
+		// The scrollbar sits in a ~16px column to the RIGHT of the viewport and is hidden
+		// while the wheel is active. WIDEN the viewport + content widgets to reclaim that
+		// column, so emotes can be positioned AND drawn (they clip at the widget edge, so
+		// math alone isn't enough) across the full panel. Without this only the RIGHT side
+		// falls short - the left has no scrollbar. Widths are restored on toggle-off.
+		Widget scrollbarW = client.getWidget(InterfaceID.Emote.SCROLLBAR);
+		int sbW = (scrollbarW != null) ? scrollbarW.getWidth() : 0;
+		reclaimWidth(viewport, sbW);
+		reclaimWidth(container, sbW);
+
 		// Centre on the VIEWPORT, expressed in CONTENTS-relative coordinates.
 		// With scrollY pinned to 0 the two share an origin.
 		int vw = viewport.getWidth();
 		int vh = viewport.getHeight();
+
+		// Edge clamp for dragged icons: the (now full-panel) viewport, both axes. The TOP
+		// bound follows the downward wheel offset, so you can't drag up into the empty gap
+		// the offset opens above the wheel.
+		int maxX = vw;
+		int maxY = vh;
+		int minY = Math.max(0, WHEEL_OFFSET_Y);
 
 		// If the viewport reports a degenerate size for a frame, bail rather than
 		// laying out against it - writing geometry derived from a bad reading is
@@ -979,8 +1091,8 @@ public class EmoteWheelPlugin extends Plugin
 		// over the panel while the wheel is active.
 		activeViewportBounds = viewport.getBounds();
 
-		int cx = vw / 2;
-		int cy = vh / 2;
+		int cx = vw / 2 + WHEEL_OFFSET_X;
+		int cy = vh / 2 + WHEEL_OFFSET_Y;
 
 		int hOff = HOVER_OFFSET_X;
 
@@ -991,6 +1103,12 @@ public class EmoteWheelPlugin extends Plugin
 		int ry = Math.min(RADIUS, (vh / 2) - (iconH / 2) - margin);
 		rx = Math.max(rx, 8);
 		ry = Math.max(ry, 8);
+		// A lone emote sits dead centre rather than at the top of a one-point ring.
+		if (n == 1)
+		{
+			rx = 0;
+			ry = 0;
+		}
 
 		double[] px = new double[n];
 		double[] py = new double[n];
@@ -1084,8 +1202,14 @@ public class EmoteWheelPlugin extends Plugin
 			// spot. Clamping to >= 0 keeps figures pinned as they scale / shift.
 			int centreX = (int) Math.round(ecx);
 			int centreY = (int) Math.round(ecy);
-			int x = Math.max(0, centreX - targetW / 2);
-			int y = Math.max(0, centreY - targetH / 2);
+			// Clamp inside the visible viewport on ALL sides. Math.max keeps the top/left
+			// edges in; Math.min keeps the right/bottom in so a dragged icon stops at the
+			// edge instead of clipping out of existence.
+			// Keep the whole icon inside the viewport (no overhang, so nothing clips). The
+			// dragged icon is NOT hover-enlarged (see targetScale), so its full width fits
+			// and it can still reach the edge.
+			int x = Math.max(0, Math.min(maxX - targetW, centreX - targetW / 2));
+			int y = Math.max(minY, Math.min(maxY - targetH, centreY - targetH / 2));
 
 			// Reposition the real button (core behaviour). Forced position survives
 			// the interface revalidating itself.
@@ -1104,19 +1228,14 @@ public class EmoteWheelPlugin extends Plugin
 			List<Widget> art = artByButton.getOrDefault(key(w), Collections.emptyList());
 
 			boolean hovered = (p.emote == hoveredEmote);
-			// Only the Random slot gets a centre label ("Random"); normal emotes
-			// already show their name in the game tooltip, so a label would just
-			// duplicate it. The Random slot's tooltip cycles candidate names, so the
-			// steady "Random" label is where it earns its keep.
-			if (hovered && p.emote == Emote.RANDOM)
-			{
-				hoverLabel = p.name;
-			}
 
-			// Targets: hovered figure grows (and dips while the button is held);
-			// non-hovered figures fade when something else is hovered.
-			double targetScale = hovered ? ICON_SCALE * HOVER_SCALE : ICON_SCALE;
-			if (hovered && mousePressed)
+			// Targets: hovered figure grows (and dips while the button is held); non-hovered
+			// figures fade when something else is hovered. The DRAGGED icon is kept at base
+			// size (not grown) so its full width fits in the viewport and it can reach the
+			// edge without clipping.
+			boolean grow = hovered && !isDragged;
+			double targetScale = grow ? ICON_SCALE * HOVER_SCALE : ICON_SCALE;
+			if (grow && mousePressed)
 			{
 				targetScale *= PRESS_SCALE;
 			}
@@ -1174,8 +1293,8 @@ public class EmoteWheelPlugin extends Plugin
 
 				// Clamp to >= 0 so a forced position never lands on -1 (the clear
 				// sentinel), which would snap the figure to the panel centre.
-				int fx = Math.max(0, (int) Math.round(figCX - aw / 2.0) + (hovered ? hOff : 0));
-				int fy = Math.max(0, (int) Math.round(figCY - ah / 2.0));
+				int fx = Math.max(0, Math.min(maxX - aw, (int) Math.round(figCX - aw / 2.0) + (hovered ? hOff : 0)));
+				int fy = Math.max(minY, Math.min(maxY - ah, (int) Math.round(figCY - ah / 2.0)));
 
 				a.setHidden(false);
 				a.setWidthMode(WidgetSizeMode.ABSOLUTE);
@@ -1191,9 +1310,8 @@ public class EmoteWheelPlugin extends Plugin
 			segments.add(new Segment(p.emote, w));
 		}
 
-		// Fade the centre label in/out - only while the Random slot is hovered.
-		double targetLabelAlpha = (hoveredEmote == Emote.RANDOM) ? 1.0 : 0.0;
-		labelAlpha += (targetLabelAlpha - labelAlpha) * ANIM_EASE;
+		// No centre label (the "Random" text was removed) - keep it faded out.
+		labelAlpha += (0.0 - labelAlpha) * ANIM_EASE;
 
 		// Hide every emote-related widget that is not on the wheel - both the
 		// buttons AND their artwork - so only the ring is left in the panel.
@@ -1477,8 +1595,173 @@ public class EmoteWheelPlugin extends Plugin
 		});
 	}
 
+	/**
+	 * Widens a widget by 'extra' px (forcing ABSOLUTE width) so the emote area can reclaim
+	 * the hidden scrollbar's column. Idempotent, and caches the original width/mode first
+	 * so {@link #restoreWidth} can put it back exactly. Based on the ORIGINAL on-screen
+	 * width (o[6]), not getOriginalWidth, which for a non-ABSOLUTE mode isn't the px width.
+	 */
+	private void reclaimWidth(Widget w, int extra)
+	{
+		if (w == null || extra <= 0)
+		{
+			return;
+		}
+		cacheState(w);
+		int[] o = originalState.get(key(w));
+		if (o == null)
+		{
+			return;
+		}
+		int target = o[6] + extra;
+		// Check getOriginalWidth (reflects the set value immediately) rather than getWidth
+		// (which only updates after revalidate) so we don't revalidate every frame.
+		if (w.getOriginalWidth() != target || w.getWidthMode() != WidgetSizeMode.ABSOLUTE)
+		{
+			w.setWidthMode(WidgetSizeMode.ABSOLUTE);
+			w.setOriginalWidth(target);
+			w.revalidate();
+		}
+	}
+
+	/** Restores a widget's original width mode and width (cached by {@link #reclaimWidth}). */
+	private void restoreWidth(Widget w)
+	{
+		if (w == null)
+		{
+			return;
+		}
+		int[] o = originalState.get(key(w));
+		if (o == null)
+		{
+			return;
+		}
+		w.setWidthMode(o[8]);
+		w.setOriginalWidth(o[2]);
+		w.revalidate();
+	}
+
+	/** Background/frame graphics we've hidden for the "Hide panel background" option. */
+	private final List<Widget> hiddenBg = new ArrayList<>();
+
+	/**
+	 * Hides the emote panel's own background/frame graphics (GRAPHIC and RECTANGLE widgets
+	 * that are DIRECT children of the panel root) so the emotes appear to float. The emote
+	 * artwork is also GRAPHIC, but it lives deeper inside CONTENTS, so walking only the
+	 * root's own children leaves the emotes untouched. A no-op unless the option is on.
+	 */
+	private void applyPanelBackground()
+	{
+		if (!config.hidePanelBackground())
+		{
+			restorePanelBackground();
+			return;
+		}
+		Widget root = getEmoteFrame();
+		if (root == null)
+		{
+			return;
+		}
+		// The background/frame live on an ANCESTOR of the emote interface (the side-panel
+		// container), not inside it - so hide the graphics there, keeping the emote
+		// widgets (which are deeper, under the container's layer children) untouched.
+		Widget container = findPanelContainer(root);
+		if (container != null)
+		{
+			hidePanelGraphics(container.getStaticChildren());
+			hidePanelGraphics(container.getDynamicChildren());
+		}
+	}
+
+	/** Walks up from the emote panel to the widget that owns the panel background/frame:
+	 *  the first ancestor with a panel-sized GRAPHIC child (the side-panel background). */
+	private Widget findPanelContainer(Widget root)
+	{
+		Widget p = root.getParent();
+		int up = 0;
+		while (p != null && up < 6)
+		{
+			if (hasPanelSizedGraphic(p.getStaticChildren()) || hasPanelSizedGraphic(p.getDynamicChildren()))
+			{
+				return p;
+			}
+			p = p.getParent();
+			up++;
+		}
+		return null;
+	}
+
+	private boolean hasPanelSizedGraphic(Widget[] children)
+	{
+		if (children == null)
+		{
+			return false;
+		}
+		for (Widget c : children)
+		{
+			if (c == null || c.getType() != WidgetType.GRAPHIC)
+			{
+				continue;
+			}
+			Rectangle b = c.getBounds();
+			if (b != null && b.width >= 150 && b.height >= 200)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void hidePanelGraphics(Widget[] children)
+	{
+		if (children == null)
+		{
+			return;
+		}
+		for (Widget c : children)
+		{
+			if (c == null)
+			{
+				continue;
+			}
+			int t = c.getType();
+			if (t != WidgetType.GRAPHIC && t != WidgetType.RECTANGLE)
+			{
+				continue;
+			}
+			if (hiddenBg.contains(c))
+			{
+				// One we hid: keep it hidden if the interface revalidated it back on.
+				c.setHidden(true);
+			}
+			else if (!c.isHidden())
+			{
+				// Newly seen and visible: hide it and remember it so we only ever
+				// restore what WE hid (never a widget that was hidden already).
+				c.setHidden(true);
+				hiddenBg.add(c);
+			}
+		}
+	}
+
+	private void restorePanelBackground()
+	{
+		for (Widget w : hiddenBg)
+		{
+			if (w != null)
+			{
+				w.setHidden(false);
+			}
+		}
+		hiddenBg.clear();
+	}
+
 	private void restoreAll()
 	{
+		restorePanelBackground();
+		// Put the reclaimed scrollbar column back (viewport + content widths).
+		restoreWidth(getEmoteViewport());
+		restoreWidth(getEmoteContainer());
 		activeViewportBounds = null;
 		anim.clear();
 		emotePos.clear();
@@ -1576,10 +1859,12 @@ public class EmoteWheelPlugin extends Plugin
 		int cx = viewport.getCanvasLocation().getX() + viewport.getWidth() / 2;
 		int cy = viewport.getCanvasLocation().getY() + viewport.getHeight() / 2;
 
+		// The centre dead zone keeps the label area from selecting a wedge - but a lone
+		// emote sits dead centre, so skip the dead zone when there's only one to hit.
 		int dz = DEAD_ZONE;
 		long dx = mouseX - cx;
 		long dy = mouseY - cy;
-		if (dx * dx + dy * dy < (long) dz * dz)
+		if (segments.size() > 1 && dx * dx + dy * dy < (long) dz * dz)
 		{
 			return null;
 		}

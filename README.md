@@ -21,8 +21,8 @@ synthetic input.
   reorder the wheel. Pick **Drag and Swap** (two emotes trade places) or **Drag and
   Slot** (drop into a slot, the rest shift). A plain click without the key always
   performs the emote.
-- **Random slot** that cycles through your unlocked emotes like a slot machine. Clicking
-  it performs whichever emote is currently showing.
+- **Random slot** that cycles through your unlocked emotes. Clicking it performs whichever
+  emote is currently showing.
 - **Hotkey toggle** to switch instantly between the wheel and the normal emote grid, with
   an optional hold-to-show mode. The hotkey never fires while you are typing in chat.
 - **Hover feedback** with smooth scaling and press animations, a spiral entrance, and
@@ -48,6 +48,8 @@ are full). With the wheel open, right-click gives **Remove** to clear a slot.
 
 <br clear="all" />
 
+&nbsp;
+
 <img width="700" alt="Right-click to favorite" src="images/favorite.png" />
 
 ## Rearranging the wheel
@@ -57,15 +59,6 @@ it. A short built-in tip walks you through it and then hides itself once you hav
 rearrange.
 
 <img width="640" alt="Rearrange mode" src="images/rearrange.png" />
-
-## Client layouts
-
-The floating look (hidden background, offset wheel) is built for the **Resizable - Modern**
-layout. On **Resizable - Classic** and **Fixed - Classic** the plugin falls back to a
-clean, centered wheel on the normal panel, and the "Hide panel background" option has no
-effect there. It all switches automatically when you change your client layout.
-
-<img width="700" alt="The wheel across the client layouts" src="images/layouts.png" />
 
 ## Making the emotes bigger
 
@@ -98,7 +91,14 @@ emotes.
 - **Hide panel background** - hide the panel background so the emotes float. Only applies
   on the Resizable - Modern layout; Classic and Fixed keep the normal panel.
 
-Slots are set in the **Favorites side panel**, not here.
+## Client layouts
+
+The floating look (hidden background) is built for the **Resizable - Modern**
+layout. On **Resizable - Classic** and **Fixed - Classic** the plugin falls back to a
+clean, centered wheel on the normal panel, and the "Hide panel background" option has no
+effect there. It all switches automatically when you change your client layout.
+
+<img width="700" alt="The wheel across the client layouts" src="images/layouts.png" />
 
 ## Notes
 

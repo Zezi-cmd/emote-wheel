@@ -35,9 +35,7 @@ synthetic input.
 
 ## The Favorites side panel
 
-<table>
-<tr>
-<td valign="top">
+<img width="240" align="right" alt="Favorites side panel" src="images/panel.png" />
 
 Open the **Emote Wheel** panel from its sidebar icon to build your wheel. Each of the six
 slots is a button - tap one and a list of emotes slides in below it. Pick an emote and the
@@ -48,12 +46,7 @@ You can also set favorites straight from the emote tab: right-click an emote and
 **Favorite** to drop it into the first open slot (or pick a slot to replace when all six
 are full). With the wheel open, right-click gives **Remove** to clear a slot.
 
-</td>
-<td valign="top" width="250">
-<img width="240" alt="Favorites side panel" src="images/panel.png" />
-</td>
-</tr>
-</table>
+<br clear="all" />
 
 <img width="700" alt="Right-click to favorite" src="images/favorite.png" />
 

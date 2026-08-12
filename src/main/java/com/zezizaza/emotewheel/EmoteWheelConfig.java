@@ -112,8 +112,9 @@ public interface EmoteWheelConfig extends Config
 			keyName = "hidePanelBackground",
 			name = "Hide panel background",
 			description = "While the wheel is open, hide the emote panel's background and frame "
-					+ "graphics so the emotes appear to float. The emote buttons stay. Works best "
-					+ "with a detached/movable emote panel.",
+					+ "graphics so the emotes appear to float. The emote buttons stay. Only applies "
+					+ "in the Resizable - Modern layout; Fixed and Resizable - Classic keep the "
+					+ "normal panel.",
 			section = inputSection,
 			position = 5
 	)

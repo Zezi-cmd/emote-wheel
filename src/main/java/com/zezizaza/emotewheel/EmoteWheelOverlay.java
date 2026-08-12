@@ -70,13 +70,11 @@ public class EmoteWheelOverlay extends Overlay
 	private static final long LOOP_PAUSE_MS = 900;
 
 	private final EmoteWheelPlugin plugin;
-	private final EmoteWheelConfig config;
 
 	@Inject
-	EmoteWheelOverlay(EmoteWheelPlugin plugin, EmoteWheelConfig config)
+	EmoteWheelOverlay(EmoteWheelPlugin plugin)
 	{
 		this.plugin = plugin;
-		this.config = config;
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.ABOVE_WIDGETS);
 	}
@@ -102,7 +100,7 @@ public class EmoteWheelOverlay extends Overlay
 		// The outline only makes sense framing the panel background, so hide it when the
 		// background is hidden (floating emotes) - otherwise it's a stray rectangle.
 		double ra = plugin.getRearrangeAlpha();
-		if (ra > 0.02 && !config.hidePanelBackground())
+		if (ra > 0.02 && !plugin.isBackgroundHidden())
 		{
 			Widget frame = plugin.getEmoteFrame();
 			if (frame != null)
@@ -123,8 +121,10 @@ public class EmoteWheelOverlay extends Overlay
 
 		// Centred label: the typewriter "Drag and Drop / Emotes to rearrange" tip while the
 		// rearrange key is held (fades out once a drag starts), else the Random hover label.
-		int cx = vx + vw / 2 + TIP_OFFSET_X;
-		int cyTip = vy + vh / 2 + TIP_OFFSET_Y;
+		// Tip follows the wheel's X: baked while floating, the user slider when shown.
+		int tipX = plugin.isBackgroundHidden() ? TIP_OFFSET_X : plugin.getWheelOffsetX();
+		int cx = vx + vw / 2 + tipX;
+		int cyTip = vy + vh / 2 + (plugin.isBackgroundHidden() ? TIP_OFFSET_Y : 0);
 		double dla = plugin.getDragLabelAlpha();
 		long start = plugin.getLabelShowStart();
 		if (dla > 0.02 && start != 0)

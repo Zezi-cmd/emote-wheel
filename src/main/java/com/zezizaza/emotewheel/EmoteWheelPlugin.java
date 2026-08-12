@@ -51,6 +51,7 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarClientID;
+import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.vars.InputType;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetSizeMode;
@@ -119,6 +120,8 @@ public class EmoteWheelPlugin extends Plugin
 	/** Baked-in nudge of the wheel centre within the viewport, tuned for the floating look. */
 	private static final int WHEEL_OFFSET_X = -5;
 	private static final int WHEEL_OFFSET_Y = 25;
+	/** Wheel X nudge when the background is SHOWN (Classic/Fixed) - re-centres the wheel. */
+	private static final int WHEEL_OFFSET_X_SHOWN = 3;
 	/** Transparency applied to non-hovered figures when something is hovered (0=opaque, 255=clear). */
 	private static final int FADE_OPACITY = 130;
 	/** Per-frame ease for the rearrange-mode frame stroke fade (higher = quicker). */
@@ -704,6 +707,31 @@ public class EmoteWheelPlugin extends Plugin
 
 
 
+	/**
+	 * True only in the Resizable - Modern layout. The floating look (hidden background,
+	 * reclaimed scrollbar, downward offsets) is built for and only sane in that layout;
+	 * Fixed - Classic and Resizable - Classic get the plain, centred wheel instead.
+	 */
+	public boolean isModernResizable()
+	{
+		return client.isResized()
+				&& client.getVarbitValue(VarbitID.RESIZABLE_STONE_ARRANGEMENT) == 1;
+	}
+
+	/** Whether the panel background is actually being hidden right now: Modern layout AND
+	 *  the config option on. Everything floating-specific keys off this. */
+	public boolean isBackgroundHidden()
+	{
+		return isModernResizable() && config.hidePanelBackground();
+	}
+
+	/** The wheel's horizontal nudge: the baked value while floating, the user's slider when
+	 *  the background is shown. The centre rearrange text follows the same value. */
+	public int getWheelOffsetX()
+	{
+		return isBackgroundHidden() ? WHEEL_OFFSET_X : WHEEL_OFFSET_X_SHOWN;
+	}
+
 	public boolean isTabOpen()
 	{
 		Widget c = getEmoteContainer();
@@ -1063,8 +1091,17 @@ public class EmoteWheelPlugin extends Plugin
 		// falls short - the left has no scrollbar. Widths are restored on toggle-off.
 		Widget scrollbarW = client.getWidget(InterfaceID.Emote.SCROLLBAR);
 		int sbW = (scrollbarW != null) ? scrollbarW.getWidth() : 0;
-		reclaimWidth(viewport, sbW);
-		reclaimWidth(container, sbW);
+		if (isBackgroundHidden())
+		{
+			reclaimWidth(viewport, sbW);
+			reclaimWidth(container, sbW);
+		}
+		else
+		{
+			// Not the floating look - leave the widths vanilla (undo if we'd widened).
+			restoreWidth(viewport);
+			restoreWidth(container);
+		}
 
 		// Centre on the VIEWPORT, expressed in CONTENTS-relative coordinates.
 		// With scrollY pinned to 0 the two share an origin.
@@ -1073,10 +1110,12 @@ public class EmoteWheelPlugin extends Plugin
 
 		// Edge clamp for dragged icons: the (now full-panel) viewport, both axes. The TOP
 		// bound follows the downward wheel offset, so you can't drag up into the empty gap
-		// the offset opens above the wheel.
+		// the offset opens above the wheel. The downward Y offset only applies in the
+		// floating (Modern + hidden background) look; other layouts get a centred wheel.
 		int maxX = vw;
 		int maxY = vh;
-		int minY = Math.max(0, WHEEL_OFFSET_Y);
+		int wheelOffY = isBackgroundHidden() ? WHEEL_OFFSET_Y : 0;
+		int minY = Math.max(0, wheelOffY);
 
 		// If the viewport reports a degenerate size for a frame, bail rather than
 		// laying out against it - writing geometry derived from a bad reading is
@@ -1091,8 +1130,10 @@ public class EmoteWheelPlugin extends Plugin
 		// over the panel while the wheel is active.
 		activeViewportBounds = viewport.getBounds();
 
-		int cx = vw / 2 + WHEEL_OFFSET_X;
-		int cy = vh / 2 + WHEEL_OFFSET_Y;
+		// Floating look uses the baked X nudge; when the background is shown the user's
+		// slider re-centres the wheel for whatever Classic/Fixed panel they're in.
+		int cx = vw / 2 + getWheelOffsetX();
+		int cy = vh / 2 + wheelOffY;
 
 		int hOff = HOVER_OFFSET_X;
 
@@ -1636,9 +1677,12 @@ public class EmoteWheelPlugin extends Plugin
 		{
 			return;
 		}
-		w.setWidthMode(o[8]);
-		w.setOriginalWidth(o[2]);
-		w.revalidate();
+		if (w.getOriginalWidth() != o[2] || w.getWidthMode() != o[8])
+		{
+			w.setWidthMode(o[8]);
+			w.setOriginalWidth(o[2]);
+			w.revalidate();
+		}
 	}
 
 	/** Background/frame graphics we've hidden for the "Hide panel background" option. */
@@ -1652,7 +1696,7 @@ public class EmoteWheelPlugin extends Plugin
 	 */
 	private void applyPanelBackground()
 	{
-		if (!config.hidePanelBackground())
+		if (!isBackgroundHidden())
 		{
 			restorePanelBackground();
 			return;

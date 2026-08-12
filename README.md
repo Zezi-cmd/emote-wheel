@@ -91,6 +91,8 @@ emotes.
 - **Hide panel background** - hide the panel background so the emotes float. Only applies
   on the Resizable - Modern layout; Classic and Fixed keep the normal panel.
 
+<br clear="all" />
+
 ## Client layouts
 
 The floating look (hidden background) is built for the **Resizable - Modern**

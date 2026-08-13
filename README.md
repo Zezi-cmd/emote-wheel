@@ -69,15 +69,6 @@ rearrange.
 
 <img width="640" alt="Rearrange mode" src="images/rearrange.png" />
 
-## Making the emotes bigger
-
-The emote wheel uses the game's real emote widgets, so its size follows the emote panel.
-If you would like the whole interface (emotes included) larger, use the
-[**Stretched Mode**](https://github.com/runelite/runelite/wiki/Stretched-Mode) plugin,
-which scales the entire game UI to your window. Combined with **Hide panel background** on
-Resizable - Modern, a bit of upscaling makes for a clean, oversized set of floating
-emotes.
-
 ## Usage
 
 1. Enable the plugin.
@@ -106,5 +97,9 @@ emotes.
 
 - Locked (dimmed) emotes can still be assigned to the wheel. Clicking one behaves exactly
   like the normal game interface and simply does nothing.
+- To make the emotes larger, use the
+  [Stretched Mode](https://github.com/runelite/runelite/wiki/Stretched-Mode) plugin to
+  scale the whole game UI - the wheel follows the emote panel's size. It pairs well with
+  Hide panel background for an oversized floating set.
 - The plugin only repositions existing RuneScape widgets and stores its own
   configuration. It performs no automated game actions or synthetic input.

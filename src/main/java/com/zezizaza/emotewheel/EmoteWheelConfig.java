@@ -76,7 +76,7 @@ public interface EmoteWheelConfig extends Config
 			description = "Hold this key and drag an emote on the wheel to rearrange it. Defaults to "
 					+ "Control. A plain click (without this key) always performs the emote.",
 			section = inputSection,
-			position = 2
+			position = 3
 	)
 	default Keybind rearrangeKey()
 	{
@@ -90,7 +90,7 @@ public interface EmoteWheelConfig extends Config
 					+ "emote and the one you drop on trade places. Drag and Slot: the emote drops into "
 					+ "the slot you aim at and the others shift to make room. None: rearranging is off.",
 			section = inputSection,
-			position = 3
+			position = 4
 	)
 	default DragMode dragMode()
 	{
@@ -105,7 +105,7 @@ public interface EmoteWheelConfig extends Config
 					+ "in the Resizable - Modern layout; Fixed and Resizable - Classic keep the "
 					+ "normal panel.",
 			section = inputSection,
-			position = 5
+			position = 2
 	)
 	default boolean hidePanelBackground()
 	{

@@ -48,6 +48,7 @@ import java.util.function.Function;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -62,6 +63,7 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.util.LinkBrowser;
 
 /**
  * The custom "Favorites" side panel. Six slot buttons show each favourite by name;
@@ -117,6 +119,8 @@ class EmoteWheelPanel extends PluginPanel
 	private final ConfigManager configManager;
 	/** Supplies each emote's in-game icon (native size), or null until it has loaded. */
 	private final Function<Emote, BufferedImage> iconProvider;
+	/** Replays the wheel's spiral entrance, run when a preset is applied. */
+	private final Runnable replayEntrance;
 
 	/** Current height of every slot row, grown to fit the largest scaled icon. */
 	private int rowHeight = SLOT_H;
@@ -168,11 +172,12 @@ class EmoteWheelPanel extends PluginPanel
 	private boolean creating;
 
 	EmoteWheelPanel(EmoteWheelConfig config, ConfigManager configManager,
-			Function<Emote, BufferedImage> iconProvider)
+			Function<Emote, BufferedImage> iconProvider, Runnable replayEntrance)
 	{
 		this.config = config;
 		this.configManager = configManager;
 		this.iconProvider = iconProvider;
+		this.replayEntrance = replayEntrance;
 
 		// Build timers against locals so the lambdas don't touch the blank-final fields
 		// before they're assigned (which the compiler rejects).
@@ -289,6 +294,9 @@ class EmoteWheelPanel extends PluginPanel
 		loadPresets();
 		rebuildPresets();
 		updateFavoritesHeader();
+
+		add(Box.createVerticalStrut(10));
+		add(buildReportFooter());
 
 		optionList.setLayout(new BoxLayout(optionList, BoxLayout.Y_AXIS));
 		optionList.setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -1081,6 +1089,8 @@ class EmoteWheelPanel extends PluginPanel
 		{
 			configManager.setConfiguration(EmoteWheelConfig.GROUP, "slot" + (i + 1), p.slots[i]);
 		}
+		// Replay the spiral entrance so the new set fans out from the centre.
+		replayEntrance.run();
 		closePresetPanel();
 	}
 
@@ -1105,6 +1115,37 @@ class EmoteWheelPanel extends PluginPanel
 	private void updateFavoritesHeader()
 	{
 		favoritesHeader.setText("Favorites - " + currentPresetName());
+	}
+
+	/** A small "report a bug" box pinned to the bottom of the panel. It only opens the
+	 *  issues page in the browser - the plugin collects nothing, so there is no data to
+	 *  disclose. */
+	private JPanel buildReportFooter()
+	{
+		JPanel footer = new JPanel();
+		footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
+		footer.setBackground(new Color(0x36, 0x36, 0x36));
+		footer.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+		JLabel blurb = new JLabel("<html><div style='width:150px'>I can't be tick-perfect all "
+				+ "the time. Found a bug with the plug? 1-tick-click that Report Button.</div></html>");
+		blurb.setFont(FontManager.getRunescapeSmallFont());
+		blurb.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		blurb.setAlignmentX(LEFT_ALIGNMENT);
+		footer.add(blurb);
+		footer.add(Box.createVerticalStrut(6));
+
+		JButton report = new JButton("Report");
+		report.setFont(FontManager.getRunescapeFont());
+		report.setFocusPainted(false);
+		report.setAlignmentX(LEFT_ALIGNMENT);
+		// Stretch the button across the full width; its label stays centred.
+		report.setMaximumSize(new Dimension(Integer.MAX_VALUE, report.getPreferredSize().height));
+		report.addActionListener(e ->
+				LinkBrowser.browse("https://github.com/Zezi-cmd/emote-wheel/issues/new"));
+		footer.add(report);
+
+		return footer;
 	}
 
 	private void deletePreset(int index)

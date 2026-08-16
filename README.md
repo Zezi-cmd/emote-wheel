@@ -51,7 +51,7 @@ all switches automatically when you change your client layout.
 
 ## The Favorites side panel
 
-<img width="240" align="right" alt="Favorites side panel" src="images/panel.png" />
+<img width="240" align="right" alt="Favorites side panel" src="images/panelfavorites.png" />
 
 Open the **Emote Wheel** panel from its sidebar icon to build your wheel. Each of the six
 slots shows an emote's icon and name. Tap a slot and a list of emotes slides in below it -
@@ -74,11 +74,15 @@ are full). With the wheel open, right-click gives **Remove** to clear a slot.
 
 ## Presets
 
+<img width="240" align="right" alt="Presets" src="images/panelpresets.png" />
+
 Under **Presets** in the side panel, save the current six favorites as a named ring -
 handy for a party set, a PvP set, or a bank-standing set. Tap a preset to preview its six
 emotes, then **Apply** it or **Delete** it. The built-in **Default** ring is always there
 and cannot be deleted, and the Favorites header shows the loaded preset (or "Custom" once
 you change a slot).
+
+<br clear="all" />
 
 ## Rearranging the wheel
 
@@ -99,7 +103,7 @@ or None.
 
 ## Configuration
 
-<img width="220" align="right" alt="Config panel" src="images/config.png" />
+<img width="220" align="right" alt="Config panel" src="images/panelconfig.png" />
 
 - **Wheel hotkey** - toggles the wheel on and off.
 - **Hold to show** - hold the hotkey instead of toggling.

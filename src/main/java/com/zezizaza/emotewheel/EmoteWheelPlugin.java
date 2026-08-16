@@ -421,7 +421,7 @@ public class EmoteWheelPlugin extends Plugin
 		// Custom slot editor in the sidebar. It gatekeeps duplicates visually, which the
 		// auto-generated config dropdowns cannot do (the config panel never refreshes a
 		// value change from code), so slot editing lives here instead.
-		panel = new EmoteWheelPanel(config, configManager, this::getEmoteIcon);
+		panel = new EmoteWheelPanel(config, configManager, this::getEmoteIcon, this::replayEntrance);
 		navButton = NavigationButton.builder()
 				.tooltip("Emote Wheel")
 				.icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
@@ -744,6 +744,22 @@ public class EmoteWheelPlugin extends Plugin
 	 * sprite is still loading or when the emote has no icon sprite; the panel is repainted
 	 * once a sprite lands. Called on the AWT thread from the panel's paint.
 	 */
+	/**
+	 * Replays the wheel's spiral entrance. Called when a preset is applied so the new set
+	 * fans out from the centre like opening the wheel, instead of popping straight in.
+	 * Clears the per-emote position/scale state so every figure starts fresh from the
+	 * centre. Runs on the client thread since it touches layout state.
+	 */
+	void replayEntrance()
+	{
+		clientThread.invoke(() ->
+		{
+			entranceProgress = 0;
+			anim.clear();
+			emotePos.clear();
+		});
+	}
+
 	BufferedImage getEmoteIcon(Emote e)
 	{
 		if (e == null)

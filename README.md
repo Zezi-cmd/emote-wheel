@@ -66,7 +66,7 @@ You can also set favorites straight from the emote tab: right-click an emote and
 **Favorite** to drop it into the first open slot (or pick a slot to replace when all six
 are full). With the wheel open, right-click gives **Remove** to clear a slot.
 
-<img width="440" alt="Right-click to favorite" src="images/favorite.png" />
+<img width="550" alt="Right-click to favorite" src="images/favorite.png" />
 
 <br clear="all" />
 

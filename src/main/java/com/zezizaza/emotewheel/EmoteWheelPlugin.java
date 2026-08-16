@@ -29,6 +29,7 @@ import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +63,7 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.config.Keybind;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseAdapter;
@@ -130,11 +133,6 @@ public class EmoteWheelPlugin extends Plugin
 	private static final double POS_EASE = 0.35;
 	/** Dim applied to all figures while the rearrange key is held but none is hovered. */
 	private static final int ICON_FADE_OPACITY = 120;
-	/** How long (ms) the rearrange key must be held before the "Drag and Drop" tip fades in. */
-	private static final long LABEL_DELAY_MS = 1000;
-	/** Grace (ms) before the tip un-dims after leaving an emote, so gliding between emotes
-	 *  through the small gaps doesn't flash the tip back to full. */
-	private static final long HOVER_GRACE_MS = 150;
 	/** Per-frame easing factor for scale/opacity tweens (0..1; higher = snappier). */
 	private static final double ANIM_EASE = 0.60;
 	/** Ring size (auto-fitted to an ellipse and clamped to what the panel allows). */
@@ -153,6 +151,7 @@ public class EmoteWheelPlugin extends Plugin
 	@Inject private KeyManager keyManager;
 	@Inject private MouseManager mouseManager;
 	@Inject private ConfigManager configManager;
+	@Inject private SpriteManager spriteManager;
 	@Inject private OverlayManager overlayManager;
 	@Inject private ClientToolbar clientToolbar;
 	@Inject private EmoteWheelConfig config;
@@ -161,6 +160,38 @@ public class EmoteWheelPlugin extends Plugin
 	/** The custom slot-editor side panel and its toolbar button. */
 	private EmoteWheelPanel panel;
 	private NavigationButton navButton;
+
+	/** Emote tab icons for the side panel, loaded on demand from each emote's sprite id
+	 *  ({@link Emote#getSpriteId()}). Written on the client thread by the async sprite
+	 *  callback and read on the AWT thread in the panel's paint, so kept concurrent. */
+	private final Map<Emote, BufferedImage> emoteIcons = new ConcurrentHashMap<>();
+	private final Set<Emote> iconRequested = ConcurrentHashMap.newKeySet();
+	/** Emotes with no API sprite id, awaiting a sprite harvested off their live tab button. */
+	private final Set<Emote> pendingWidgetIcons = ConcurrentHashMap.newKeySet();
+
+	/** Normalised names the player has excluded from the Random slot's cycle. */
+	private volatile Set<String> randomExcludes = new HashSet<>();
+
+	/**
+	 * Maps a locked emote sprite to its unlocked (coloured) twin. The emote tab shows the
+	 * locked, greyed sprite for emotes the player has not unlocked, but the side panel wants
+	 * the unlocked icon for every emote. These are the unnamed emote sprite batches (the ones
+	 * with no {@link net.runelite.api.gameval.SpriteID.Emotes} constant): unlocked and locked
+	 * sit in parallel blocks, so this pairs them by position.
+	 */
+	private static final Map<Integer, Integer> UNLOCKED_SPRITE = new HashMap<>();
+
+	static
+	{
+		int[][] pairs = {
+			{2427, 2423}, {2428, 2424}, {2429, 2425}, {2430, 2426},
+			{6339, 3604}, {6340, 3606}, {6341, 3607}, {6342, 3608},
+		};
+		for (int[] p : pairs)
+		{
+			UNLOCKED_SPRITE.put(p[0], p[1]);
+		}
+	}
 
 	/**
 	 * Canvas bounds of the emote viewport while the wheel is active, or null when
@@ -254,7 +285,7 @@ public class EmoteWheelPlugin extends Plugin
 		@Override
 		public void keyPressed(KeyEvent e)
 		{
-			if (isRearrangeKey(e))
+			if (config.dragMode() != DragMode.NONE && isRearrangeKey(e))
 			{
 				rearrangeHeld = true;
 			}
@@ -281,10 +312,6 @@ public class EmoteWheelPlugin extends Plugin
 	/** True while the wheel is active (favourites arranged). Toggled by the hotkey. */
 	@Getter private boolean active;
 
-	/** Emote name shown in the wheel centre while hovering (kept during fade-out). */
-	@Getter private String hoverLabel = "";
-	/** 0..1 fade of the centre label, eased each frame. */
-	@Getter private double labelAlpha;
 	/** 0..1 fan-out entrance progress; 0 = figures stacked at centre, 1 = at the ring. */
 	private double entranceProgress;
 
@@ -308,23 +335,6 @@ public class EmoteWheelPlugin extends Plugin
 	/** 0..1 eased alpha of the rearrange-mode frame stroke (fades in while the key is held
 	 *  OR a drag is in progress). */
 	@Getter private double rearrangeAlpha;
-
-	/** 0..1 eased alpha of the "Drag and Drop" centre prompt. Appears only after the key
-	 *  has been held a while, hides once a drag starts, and returns only after re-holding. */
-	@Getter private double dragLabelAlpha;
-
-	/** When the rearrange key was first held (ms), or 0 if not held; drives the tip delay. */
-	private long rearrangeHeldSince;
-	/** Set once a drag happens during a hold; keeps the tip hidden until the key is released. */
-	private boolean labelSuppressed;
-	/** When the tip actually began showing (ms), or 0; the overlay drives its typewriter
-	 *  timeline from this. Reset only after the fade-out finishes. */
-	@Getter private volatile long labelShowStart;
-
-	/** Eased 0..1 multiplier that dims the tip toward 50% while an emote is hovered. */
-	@Getter private double tipDim = 1.0;
-	/** Last time (ms) an emote was hovered; debounces the tip dim across the ring gaps. */
-	private long lastHoverTime;
 
 	/**
 	 * Cached original geometry keyed by widget identity:
@@ -395,10 +405,23 @@ public class EmoteWheelPlugin extends Plugin
 		mouseManager.registerMouseWheelListener(scrollBlocker);
 		mouseManager.registerMouseListener(pressListener);
 
+		randomExcludes = parseExcludes(config.randomExclude());
+
+		// A few emotes have no named icon sprite in the API; their icons are harvested off
+		// the live emote-tab button instead, once the tab is open.
+		pendingWidgetIcons.clear();
+		for (Emote e : Emote.values())
+		{
+			if (e != Emote.NONE && e != Emote.RANDOM && e.getSpriteId() == Emote.NO_SPRITE)
+			{
+				pendingWidgetIcons.add(e);
+			}
+		}
+
 		// Custom slot editor in the sidebar. It gatekeeps duplicates visually, which the
 		// auto-generated config dropdowns cannot do (the config panel never refreshes a
 		// value change from code), so slot editing lives here instead.
-		panel = new EmoteWheelPanel(config, configManager);
+		panel = new EmoteWheelPanel(config, configManager, this::getEmoteIcon);
 		navButton = NavigationButton.builder()
 				.tooltip("Emote Wheel")
 				.icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
@@ -461,6 +484,12 @@ public class EmoteWheelPlugin extends Plugin
 		// can read it cheaply and correctly when deciding whether to swallow the key.
 		typing = typingInChat();
 
+		// Harvest icons for the handful of emotes with no API sprite id, off the live tab.
+		if (!pendingWidgetIcons.isEmpty())
+		{
+			harvestMissingIcons();
+		}
+
 		// Drive the layout just before the client draws widgets, so the wheel is in
 		// place on the very frame the emote tab opens - no flash of the raw grid
 		// (an ABOVE_WIDGETS overlay would run after the draw and be one frame late).
@@ -485,7 +514,16 @@ public class EmoteWheelPlugin extends Plugin
 			return;
 		}
 		String key = event.getKey();
-		if (key != null && key.startsWith("slot") && panel != null)
+		if ("randomExclude".equals(key))
+		{
+			randomExcludes = parseExcludes(config.randomExclude());
+		}
+		// Slot edits change the names shown; a Drag Mode change shows or hides the grab
+		// handles; the A-Z toggle reorders the picker; the exclude list changes the Random
+		// preview. Repaint for all.
+		if (key != null && panel != null
+				&& (key.startsWith("slot") || "dragMode".equals(key)
+				|| "alphabetical".equals(key) || "randomExclude".equals(key)))
 		{
 			panel.refresh();
 		}
@@ -678,6 +716,150 @@ public class EmoteWheelPlugin extends Plugin
 			case 6: return config.slot6();
 			default: return Emote.NONE;
 		}
+	}
+
+	/** Splits the comma-separated exclude list into normalised emote names. */
+	private Set<String> parseExcludes(String raw)
+	{
+		Set<String> out = new HashSet<>();
+		if (raw != null)
+		{
+			for (String tok : raw.split(","))
+			{
+				String n = normalise(tok);
+				if (!n.isEmpty())
+				{
+					out.add(n);
+				}
+			}
+		}
+		return out;
+	}
+
+	// ------------------------------------------------------------------ icons
+
+	/**
+	 * The side panel's icon source: returns the emote's tab icon, loading it from the
+	 * emote's sprite id on first request (async) and caching it. Returns null while the
+	 * sprite is still loading or when the emote has no icon sprite; the panel is repainted
+	 * once a sprite lands. Called on the AWT thread from the panel's paint.
+	 */
+	BufferedImage getEmoteIcon(Emote e)
+	{
+		if (e == null)
+		{
+			return null;
+		}
+		BufferedImage img = emoteIcons.get(e);
+		if (img != null)
+		{
+			return img;
+		}
+		// Emotes with an API sprite id load straight away; the rest are handled by the
+		// widget harvest on the client thread and appear once the tab has been open.
+		if (e.getSpriteId() != Emote.NO_SPRITE)
+		{
+			loadIcon(e, e.getSpriteId());
+		}
+		return null;
+	}
+
+	/** Requests a sprite once, caching it and repainting the panel when it arrives. */
+	private void loadIcon(Emote e, int spriteId)
+	{
+		if (spriteId <= 0 || !iconRequested.add(e))
+		{
+			return;
+		}
+		spriteManager.getSpriteAsync(spriteId, 0, sprite ->
+		{
+			if (sprite != null)
+			{
+				emoteIcons.put(e, sprite);
+				if (panel != null)
+				{
+					panel.iconsUpdated();
+				}
+			}
+		});
+	}
+
+	/**
+	 * For the emotes with no API sprite id, reads the sprite off their live emote-tab
+	 * button (or a child of it) and loads it. Runs on the client thread; each emote is
+	 * resolved once, then dropped from the pending set.
+	 */
+	private void harvestMissingIcons()
+	{
+		Widget container = getEmoteContainer();
+		if (container == null)
+		{
+			return;
+		}
+		Widget[] children = container.getDynamicChildren();
+		if (children == null || children.length == 0)
+		{
+			children = container.getStaticChildren();
+		}
+		if (children == null || children.length == 0)
+		{
+			return;
+		}
+		for (Emote e : new ArrayList<>(pendingWidgetIcons))
+		{
+			int sid = harvestSprite(findEmoteWidget(children, e.getMatchTerm()), children);
+			if (sid > 0)
+			{
+				pendingWidgetIcons.remove(e);
+				// Swap a locked (greyed) sprite for its unlocked twin so the side panel
+				// shows the coloured icon even for emotes the player has not unlocked.
+				int unlocked = UNLOCKED_SPRITE.getOrDefault(sid, sid);
+				log.debug("[emotewheel] harvested {} sprite {} -> {}", e, sid, unlocked);
+				loadIcon(e, unlocked);
+			}
+		}
+	}
+
+	/**
+	 * Finds the emote's icon sprite. The clickable button itself usually has no sprite
+	 * (it is a bare hotspot), so we also check its children and, failing that, any sibling
+	 * graphic stacked at the same spot in the grid, which is where the icon actually sits.
+	 */
+	private int harvestSprite(Widget button, Widget[] siblings)
+	{
+		if (button == null)
+		{
+			return -1;
+		}
+		if (button.getSpriteId() > 0)
+		{
+			return button.getSpriteId();
+		}
+		Widget[] kids = button.getChildren();
+		if (kids != null)
+		{
+			for (Widget c : kids)
+			{
+				if (c != null && c.getSpriteId() > 0)
+				{
+					return c.getSpriteId();
+				}
+			}
+		}
+		int bx = button.getRelativeX();
+		int by = button.getRelativeY();
+		for (Widget c : siblings)
+		{
+			if (c == null || c == button || c.getSpriteId() <= 0)
+			{
+				continue;
+			}
+			if (c.getRelativeX() == bx && c.getRelativeY() == by)
+			{
+				return c.getSpriteId();
+			}
+		}
+		return -1;
 	}
 
 	// ------------------------------------------------------------------ state
@@ -961,13 +1143,15 @@ public class EmoteWheelPlugin extends Plugin
 				}
 			}
 
-			// Only performable (unlocked) emotes are cycling candidates - the slot
-			// machine lands on one and it must actually perform on click.
+			// Only performable emotes are cycling candidates - the slot machine lands on
+			// one and it must actually perform on click. Emotes on the player's exclude
+			// list (e.g. locked ones they never unlocked) are skipped too.
 			List<Widget> candidates = new ArrayList<>();
 			for (Widget child : children)
 			{
 				if (child != null && isPerformButton(child)
-						&& !favNames.contains(buttonLabel(child)))
+						&& !favNames.contains(buttonLabel(child))
+						&& !randomExcludes.contains(buttonLabel(child)))
 				{
 					candidates.add(child);
 				}
@@ -1001,55 +1185,6 @@ public class EmoteWheelPlugin extends Plugin
 		// stroke's alpha toward it so the indicator fades in/out quickly.
 		boolean rearrangeMode = rearrangeHeld || dragging;
 		rearrangeAlpha += ((rearrangeMode ? 1.0 : 0.0) - rearrangeAlpha) * REARRANGE_EASE;
-
-		// Delayed "Drag and Drop" helper tip: fades in only after the key has been held a
-		// short while, hides the moment a drag starts, and won't return until the key is
-		// released and held again.
-		long now = System.currentTimeMillis();
-		if (!rearrangeHeld)
-		{
-			rearrangeHeldSince = 0;
-			labelSuppressed = false;
-		}
-		else
-		{
-			if (rearrangeHeldSince == 0)
-			{
-				rearrangeHeldSince = now;
-			}
-			if (dragging)
-			{
-				labelSuppressed = true;
-			}
-		}
-		// Show the tip until the player has done a rearrange (tutorial complete), or always
-		// if they opted in with the toggle.
-		boolean showLabel = (config.showDragTip() || !config.tutorialDone())
-				&& rearrangeHeld && !dragging && !labelSuppressed
-				&& rearrangeHeldSince != 0 && (now - rearrangeHeldSince) >= LABEL_DELAY_MS;
-		dragLabelAlpha += ((showLabel ? 1.0 : 0.0) - dragLabelAlpha) * REARRANGE_EASE;
-		if (showLabel)
-		{
-			if (labelShowStart == 0)
-			{
-				labelShowStart = now;
-			}
-		}
-		else if (dragLabelAlpha < 0.02)
-		{
-			// Reset the typewriter only after the fade-out finishes, so it doesn't
-			// flicker back to the first letter while fading.
-			labelShowStart = 0;
-		}
-		// Dim the tip toward 50% while an emote is hovered, so it's less in the way. A short
-		// grace keeps it dimmed while gliding between emotes (through the ring's dead gaps),
-		// only un-dimming once the cursor is genuinely off for a beat.
-		if (hoveredEmote != null)
-		{
-			lastHoverTime = now;
-		}
-		boolean dimActive = hoveredEmote != null || (now - lastHoverTime) < HOVER_GRACE_MS;
-		tipDim += ((dimActive ? 0.5 : 1.0) - tipDim) * REARRANGE_EASE;
 
 		// While dragging, which ring index is the drop aimed at right now? Used below
 		// to keep that slot brighter than the faded others so the target is readable.
@@ -1350,9 +1485,6 @@ public class EmoteWheelPlugin extends Plugin
 
 			segments.add(new Segment(p.emote, w));
 		}
-
-		// No centre label (the "Random" text was removed) - keep it faded out.
-		labelAlpha += (0.0 - labelAlpha) * ANIM_EASE;
 
 		// Hide every emote-related widget that is not on the wheel - both the
 		// buttons AND their artwork - so only the ring is left in the panel.
@@ -1810,13 +1942,6 @@ public class EmoteWheelPlugin extends Plugin
 		anim.clear();
 		emotePos.clear();
 		pendingOrder = null;
-		labelAlpha = 0;
-		dragLabelAlpha = 0;
-		rearrangeHeldSince = 0;
-		labelSuppressed = false;
-		labelShowStart = 0;
-		tipDim = 1.0;
-		lastHoverTime = 0;
 		entranceProgress = 0;
 
 		// Drop any in-progress drag so it can't carry across a toggle.
@@ -2033,12 +2158,6 @@ public class EmoteWheelPlugin extends Plugin
 
 		// Drive the layout from this committed order until the config write propagates.
 		pendingOrder = new ArrayList<>(order);
-
-		// First successful rearrange completes the tutorial, so the tip stops auto-showing.
-		if (!config.tutorialDone())
-		{
-			configManager.setConfiguration(EmoteWheelConfig.GROUP, "tutorialDone", true);
-		}
 	}
 
 	/** True once the live config matches the just-dropped order (config has caught up). */

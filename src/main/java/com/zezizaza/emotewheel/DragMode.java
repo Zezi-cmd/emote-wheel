@@ -32,7 +32,9 @@ public enum DragMode
 	/** The dragged emote drops into the slot you aim at; the others shift to make room. */
 	MOVE("Drag and Slot"),
 	/** The dragged emote and the one you drop on trade places; nothing else moves. */
-	SWAP("Drag and Swap");
+	SWAP("Drag and Swap"),
+	/** Rearranging is off; dragging does nothing and a click always performs the emote. */
+	NONE("None");
 
 	private final String displayName;
 

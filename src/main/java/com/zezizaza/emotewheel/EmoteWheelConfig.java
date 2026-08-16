@@ -38,6 +38,9 @@ public interface EmoteWheelConfig extends Config
 	@ConfigSection(name = "Input", description = "How the wheel is toggled", position = 0)
 	String inputSection = "input";
 
+	@ConfigSection(name = "Favorites panel", description = "The custom Favorites side panel", position = 1)
+	String sidebarSection = "sidebar";
+
 
 	// ------------------------------------------------------------------ input
 
@@ -83,29 +86,15 @@ public interface EmoteWheelConfig extends Config
 	@ConfigItem(
 			keyName = "dragMode",
 			name = "Drag Mode",
-			description = "How dragging an emote rearranges the wheel. Drag and Slot: the emote drops "
-					+ "into the slot you aim at and the others shift to make room. Drag and Swap: the "
-					+ "dragged emote and the one you drop on trade places.",
+			description = "How dragging an emote rearranges the wheel. Drag and Swap: the dragged "
+					+ "emote and the one you drop on trade places. Drag and Slot: the emote drops into "
+					+ "the slot you aim at and the others shift to make room. None: rearranging is off.",
 			section = inputSection,
 			position = 3
 	)
 	default DragMode dragMode()
 	{
 		return DragMode.SWAP;
-	}
-
-	@ConfigItem(
-			keyName = "showDragTip",
-			name = "Always show tip",
-			description = "Keep the \"Drag and Drop Emotes to rearrange\" helper tip showing whenever "
-					+ "the rearrange key is held. It hides itself automatically once you've done a "
-					+ "rearrange, so leave this off unless you want it to stay.",
-			section = inputSection,
-			position = 4
-	)
-	default boolean showDragTip()
-	{
-		return false;
 	}
 
 	@ConfigItem(
@@ -123,19 +112,48 @@ public interface EmoteWheelConfig extends Config
 		return true;
 	}
 
-	/** Internal: set true the first time the player completes a rearrange, which hides the tip. */
+	// ---------------------------------------------------------------- sidebar
+
 	@ConfigItem(
-			keyName = "tutorialDone",
+			keyName = "alphabetical",
+			name = "Sort emotes A-Z",
+			description = "Order the emotes in the side panel's picker alphabetically. Off "
+					+ "lists them in the in-game emote tab order.",
+			section = sidebarSection,
+			position = 0
+	)
+	default boolean alphabetical()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+			keyName = "randomExclude",
+			name = "Random exclude list",
+			description = "Emotes to keep out of the Random slot's cycle, by name, separated "
+					+ "by commas (for example: Goblin Bow, Sit down). Handy for removing emotes "
+					+ "you have not unlocked. Case-insensitive.",
+			section = sidebarSection,
+			position = 2
+	)
+	default String randomExclude()
+	{
+		return "";
+	}
+
+	// ----------------------------------------------------------------- layout
+
+	/** Internal: saved presets. One per line, "name\tEMOTE1,...,EMOTE6"; managed by the panel. */
+	@ConfigItem(
+			keyName = "presets",
 			name = "",
 			description = "",
 			hidden = true
 	)
-	default boolean tutorialDone()
+	default String presets()
 	{
-		return false;
+		return "";
 	}
-
-	// ----------------------------------------------------------------- layout
 
 	@ConfigItem(
 			keyName = "slot1",

@@ -24,10 +24,14 @@
  */
 package com.zezizaza.emotewheel;
 
+import net.runelite.api.gameval.SpriteID;
+
 /**
  * The OSRS emote set, in emote-tab order. Names must match the in-game emote
  * button names (matched case-insensitively), taken from the OSRS Wiki emote list.
- * NONE and RANDOM are plugin-specific slot options, not real emotes.
+ * NONE and RANDOM are plugin-specific slot options, not real emotes. The sprite id
+ * (from {@link SpriteID.Emotes}) is the emote's tab icon, drawn in the side panel; a
+ * handful of emotes have no such sprite and use {@link #NO_SPRITE}.
  */
 public enum Emote
 {
@@ -35,71 +39,80 @@ public enum Emote
 	RANDOM("Random"),
 
 	// Default emotes (available from account creation).
-	YES("Yes"),
-	NO("No"),
-	BOW("Bow"),
-	ANGRY("Angry"),
-	THINK("Think"),
-	WAVE("Wave"),
-	SHRUG("Shrug"),
-	CHEER("Cheer"),
-	BECKON("Beckon"),
-	LAUGH("Laugh"),
-	JUMP_FOR_JOY("Jump for Joy"),
-	YAWN("Yawn"),
-	DANCE("Dance"),
-	JIG("Jig"),
-	SPIN("Spin"),
-	HEADBANG("Headbang"),
-	CRY("Cry"),
-	BLOW_KISS("Blow Kiss"),
-	PANIC("Panic"),
-	RASPBERRY("Raspberry"),
-	CLAP("Clap"),
-	SALUTE("Salute"),
-	PREMIER_SHIELD("Premier Shield"),
+	YES("Yes", SpriteID.Emotes.YES),
+	NO("No", SpriteID.Emotes.NO),
+	BOW("Bow", SpriteID.Emotes.BOW),
+	ANGRY("Angry", SpriteID.Emotes.ANGRY),
+	THINK("Think", SpriteID.Emotes.THINK),
+	WAVE("Wave", SpriteID.Emotes.WAVE),
+	SHRUG("Shrug", SpriteID.Emotes.SHRUG),
+	CHEER("Cheer", SpriteID.Emotes.CHEER),
+	BECKON("Beckon", SpriteID.Emotes.BECKON),
+	LAUGH("Laugh", SpriteID.Emotes.LAUGH),
+	JUMP_FOR_JOY("Jump for Joy", SpriteID.Emotes.JUMP_FOR_JOY),
+	YAWN("Yawn", SpriteID.Emotes.YAWN),
+	DANCE("Dance", SpriteID.Emotes.DANCE),
+	JIG("Jig", SpriteID.Emotes.JIG),
+	SPIN("Spin", SpriteID.Emotes.SPIN),
+	HEADBANG("Headbang", SpriteID.Emotes.HEADBANG),
+	CRY("Cry", SpriteID.Emotes.CRY),
+	BLOW_KISS("Blow Kiss", SpriteID.Emotes.BLOW_KISS),
+	PANIC("Panic", SpriteID.Emotes.PANIC),
+	RASPBERRY("Raspberry", SpriteID.Emotes.RASPBERRY),
+	CLAP("Clap", SpriteID.Emotes.CLAP),
+	SALUTE("Salute", SpriteID.Emotes.SALUTE),
+	PREMIER_SHIELD("Premier Shield", SpriteID.Emotes.PREMIER_SHIELD),
 	SIT_DOWN("Sit down"),
 
 	// Unlockable emotes.
-	GOBLIN_BOW("Goblin Bow"),
-	GOBLIN_SALUTE("Goblin Salute"),
+	GOBLIN_BOW("Goblin Bow", SpriteID.Emotes.GOBLIN_BOW),
+	GOBLIN_SALUTE("Goblin Salute", SpriteID.Emotes.GOBLIN_SALUTE),
 	FLEX("Flex"),
-	GLASS_BOX("Glass Box"),
-	CLIMB_ROPE("Climb Rope"),
-	LEAN("Lean"),
-	GLASS_WALL("Glass Wall"),
-	ZOMBIE_WALK("Zombie Walk"),
-	ZOMBIE_DANCE("Zombie Dance"),
-	SIT_UP("Sit up"),
-	PUSH_UP("Push up"),
-	STAR_JUMP("Star jump"),
-	JOG("Jog"),
-	SKILLCAPE("Skillcape", "cape"),
-	AIR_GUITAR("Air Guitar"),
-	URI_TRANSFORM("Uri transform"),
+	GLASS_BOX("Glass Box", SpriteID.Emotes.GLASS_BOX),
+	CLIMB_ROPE("Climb Rope", SpriteID.Emotes.CLIMB_ROPE),
+	LEAN("Lean", SpriteID.Emotes.LEAN),
+	GLASS_WALL("Glass Wall", SpriteID.Emotes.GLASS_WALL),
+	ZOMBIE_WALK("Zombie Walk", SpriteID.Emotes.ZOMBIE_WALK),
+	ZOMBIE_DANCE("Zombie Dance", SpriteID.Emotes.ZOMBIE_DANCE),
+	SIT_UP("Sit up", SpriteID.Emotes.SIT_UP),
+	PUSH_UP("Push up", SpriteID.Emotes.PUSH_UP),
+	STAR_JUMP("Star jump", SpriteID.Emotes.STAR_JUMP),
+	JOG("Jog", SpriteID.Emotes.JOG),
+	SKILLCAPE("Skillcape", "cape", SpriteID.Emotes.SKILLCAPE),
+	AIR_GUITAR("Air Guitar", SpriteID.Emotes.AIR_GUITAR),
+	URI_TRANSFORM("Uri transform", SpriteID.Emotes.URI_TRANSFORM),
 	EXPLORE("Explore"),
-	FORTIS_SALUTE("Fortis Salute"),
-	CRAB_DANCE("Crab dance"),
-	IDEA("Idea"),
-	STAMP("Stamp"),
-	FLAP("Flap"),
-	SLAP_HEAD("Slap Head"),
-	RABBIT_HOP("Rabbit Hop"),
-	SCARED("Scared"),
-	ZOMBIE_HAND("Zombie Hand"),
-	HYPERMOBILE_DRINKER("Hypermobile Drinker"),
-	SMOOTH_DANCE("Smooth dance"),
-	CRAZY_DANCE("Crazy dance"),
+	FORTIS_SALUTE("Fortis Salute", SpriteID.Emotes.FORTIS_SALUTE),
+	CRAB_DANCE("Crab dance", SpriteID.Emotes.CRAB_DANCE),
+	IDEA("Idea", SpriteID.Emotes.IDEA),
+	STAMP("Stamp", SpriteID.Emotes.STAMP),
+	FLAP("Flap", SpriteID.Emotes.FLAP),
+	SLAP_HEAD("Slap Head", SpriteID.Emotes.SLAP_HEAD),
+	RABBIT_HOP("Rabbit Hop", SpriteID.Emotes.RABBIT_HOP),
+	SCARED("Scared", SpriteID.Emotes.SCARED),
+	ZOMBIE_HAND("Zombie Hand", SpriteID.Emotes.ZOMBIE_HAND),
+	HYPERMOBILE_DRINKER("Hypermobile Drinker", SpriteID.Emotes.HYPERMOBILE_DRINKER),
+	SMOOTH_DANCE("Smooth dance", SpriteID.Emotes.SMOOTH_DANCE),
+	CRAZY_DANCE("Crazy dance", SpriteID.Emotes.CRAZY_DANCE),
 	PARTY("Party"),
 	TRICK("Trick"),
 	RELIC_UNLOCK("Relic unlock");
 
+	/** Sentinel for emotes with no side-panel icon sprite. */
+	public static final int NO_SPRITE = -1;
+
 	private final String displayName;
 	private final String matchTerm;
+	private final int spriteId;
 
 	Emote(String displayName)
 	{
-		this(displayName, displayName);
+		this(displayName, displayName, NO_SPRITE);
+	}
+
+	Emote(String displayName, int spriteId)
+	{
+		this(displayName, displayName, spriteId);
 	}
 
 	/**
@@ -107,11 +120,13 @@ public enum Emote
 	 *                  display name, but the Skillcape button is renamed after the
 	 *                  worn cape (e.g. "Attack cape", "Max cape"), so it matches on
 	 *                  the shared substring "cape" instead.
+	 * @param spriteId  the emote tab icon sprite, or {@link #NO_SPRITE} if none.
 	 */
-	Emote(String displayName, String matchTerm)
+	Emote(String displayName, String matchTerm, int spriteId)
 	{
 		this.displayName = displayName;
 		this.matchTerm = matchTerm;
+		this.spriteId = spriteId;
 	}
 
 	public String getDisplayName()
@@ -122,6 +137,12 @@ public enum Emote
 	public String getMatchTerm()
 	{
 		return matchTerm;
+	}
+
+	/** The emote tab icon sprite id, or {@link #NO_SPRITE} if this emote has none. */
+	public int getSpriteId()
+	{
+		return spriteId;
 	}
 
 	@Override

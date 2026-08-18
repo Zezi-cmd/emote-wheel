@@ -88,11 +88,9 @@ class EmoteWheelPanel extends PluginPanel
 	private static final int PICKER_H = 340;
 	/** Press-and-hold this long on a slot to arm a drag (the grab bars fade in). */
 	private static final int HOLD_MS = 200;
-	/** Base left inset of the slot text, before the config inset is added. */
-	private static final int TEXT_LEFT_PAD = 10;
 	/** Horizontal room the grab bars occupy; the text slides right by this while dragging. */
 	private static final int BAR_ROOM = 18;
-	/** Baked-in layout: icon on the left, content inset 10, no extra icon-text gap. */
+	/** Baked-in layout: content inset 10, icon-text gap 10. */
 	private static final int FIXED_INSET = 10;
 	private static final int FIXED_ICON_GAP = 10;
 	private static final float DIM = 0.35f;
@@ -1478,12 +1476,9 @@ class EmoteWheelPanel extends PluginPanel
 			}
 
 			int inset = FIXED_INSET;
-			boolean iconLeft = true;
 
-			// The emote icon: on the right by default, on the left when the toggle is set.
-			// The Random slot cycles through the emotes' icons like the in-game slot machine.
-			// It is centred in a fixed-width column so the label doesn't jump as Random
-			// cycles icons of different widths.
+			// The emote icon sits on the left, centred in a fixed-width column so the label
+			// doesn't jump as the Random slot cycles icons of different widths.
 			Emote shown = slotValue(index);
 			BufferedImage icon = shown == Emote.RANDOM ? randomIcon() : iconProvider.apply(shown);
 			int col = iconColW;
@@ -1495,20 +1490,17 @@ class EmoteWheelPanel extends PluginPanel
 				int iw = (int) Math.round(icon.getWidth() * f);
 				int ih = (int) Math.round(icon.getHeight() * f);
 				col = Math.max(col, iw);
-				int colLeft = iconLeft ? (8 + inset) : (w - 8 - inset - col);
-				int ix = colLeft + (col - iw) / 2;
+				int ix = (8 + inset) + (col - iw) / 2;
 				g2.drawImage(icon, ix, (h - ih) / 2, iw, ih, null);
 			}
 
-			// Leading edge of the text: the base pad, or just past the fixed icon column plus
-			// the configurable gap when the icon sits on the left. The grab bars go just
-			// before the text, which slides right by BAR_ROOM as they fade in.
-			int iconGap = FIXED_ICON_GAP;
-			int textBase = iconLeft ? (8 + inset + col + iconGap) : (TEXT_LEFT_PAD + inset);
+			// Leading edge of the text: just past the fixed icon column plus the gap. The grab
+			// bars go just before the text, which slides right by BAR_ROOM as they fade in.
+			int textBase = 8 + inset + col + FIXED_ICON_GAP;
 
 			if (handleAlpha > 0.02f)
 			{
-				int a = (int) Math.round(Math.min(1f, handleAlpha) * 255);
+				int a = Math.round(Math.min(1f, handleAlpha) * 255);
 				g2.setColor(new Color(255, 255, 255, a));
 				g2.setStroke(new BasicStroke(2.4f));
 				int bx = textBase - 4;

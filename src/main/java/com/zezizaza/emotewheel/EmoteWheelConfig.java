@@ -41,6 +41,24 @@ public interface EmoteWheelConfig extends Config
 	@ConfigSection(name = "Favorites panel", description = "The custom Favorites side panel", position = 1)
 	String sidebarSection = "sidebar";
 
+	@ConfigItem(
+			keyName = "showUpdateMessage",
+			name = "Show update messages",
+			description = "Print a short changelog in the chat box the first time you log in "
+					+ "after the plugin updates."
+	)
+	default boolean showUpdateMessage()
+	{
+		return true;
+	}
+
+	/** Internal: id of the last update changelog shown, so it appears only once. */
+	@ConfigItem(keyName = "lastUpdateSeen", name = "", description = "", hidden = true)
+	default String lastUpdateSeen()
+	{
+		return "";
+	}
+
 
 	// ------------------------------------------------------------------ input
 

@@ -43,6 +43,7 @@ import javax.inject.Inject;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.GameState;
 import net.runelite.api.Menu;
 import net.runelite.api.MenuAction;
@@ -50,6 +51,7 @@ import net.runelite.api.MenuEntry;
 import net.runelite.api.Point;
 import net.runelite.api.events.BeforeRender;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarClientID;
@@ -146,6 +148,22 @@ public class EmoteWheelPlugin extends Plugin
 	/** Turns each emote spirals through as it flies out/in (1.0 = a full turn). */
 	private static final double ENTRANCE_TURNS = 0.75;
 
+	/** Bump this when a new update changelog should be shown; anyone whose stored
+	 *  "lastUpdateSeen" differs gets these lines printed once on their next login. */
+	private static final String UPDATE_ID = "v2";
+	/** DEV ONLY: while true, the changelog shows on every login and is never marked as seen,
+	 *  for testing the look. SET THIS TO false BEFORE RELEASING so it shows once per update. */
+	private static final boolean ALWAYS_SHOW_UPDATE = false;
+	/** Header label. Kept as "[Update]" for this first rollout. Set it to null in a future
+	 *  release to auto-use the Hub-built jar version instead (see {@link #updateMessage()}). */
+	private static final String UPDATE_LABEL = "[Update]";
+	private static final String[] UPDATE_LINES = {
+		"Drag emotes on the wheel to rearrange them (hold Ctrl).",
+		"New Favorites panel with icons, search, and customizable presets.",
+		"Emotes can now float free of the panel background (modern resizable).",
+		"The wheel hotkey no longer gets eaten while typing in chat.",
+	};
+
 	@Inject private Client client;
 	@Inject private ClientThread clientThread;
 	@Inject private KeyManager keyManager;
@@ -160,6 +178,13 @@ public class EmoteWheelPlugin extends Plugin
 	/** The custom slot-editor side panel and its toolbar button. */
 	private EmoteWheelPanel panel;
 	private NavigationButton navButton;
+
+	/** Set when the update changelog should be printed on the next game tick (chat is ready
+	 *  by then, unlike the instant of the LOGGED_IN event). */
+	private boolean showUpdateNextTick;
+	/** Guards against re-showing within one login: LOGGED_IN also fires on teleports / POH
+	 *  loads. Reset on a real logout / world hop. */
+	private boolean updateShownThisLogin;
 
 	/** Emote tab icons for the side panel, loaded on demand from each emote's sprite id
 	 *  ({@link Emote#getSpriteId()}). Written on the client thread by the async sprite
@@ -433,6 +458,13 @@ public class EmoteWheelPlugin extends Plugin
 		// Restore the remembered on/off state from the previous session.
 		active = Boolean.TRUE.equals(
 				configManager.getConfiguration(EmoteWheelConfig.GROUP, "active", Boolean.class));
+
+		// If the plugin just updated while the player is already logged in, queue the
+		// changelog for the next tick. A fresh login is handled in onGameStateChanged.
+		if (client.getGameState() == GameState.LOGGED_IN && shouldShowUpdate())
+		{
+			showUpdateNextTick = true;
+		}
 	}
 
 	@Override
@@ -474,6 +506,68 @@ public class EmoteWheelPlugin extends Plugin
 			layoutApplied = false;
 			activeViewportBounds = null;
 			preLayoutScrollY = -1;
+			updateShownThisLogin = false;
+		}
+		else if (s == GameState.LOGGED_IN && !updateShownThisLogin && shouldShowUpdate())
+		{
+			// Show the changelog on the next tick, once chat is ready.
+			showUpdateNextTick = true;
+		}
+	}
+
+	/** True when this update's changelog has not been shown yet and messages are enabled. */
+	private boolean shouldShowUpdate()
+	{
+		if (!config.showUpdateMessage())
+		{
+			return false;
+		}
+		return ALWAYS_SHOW_UPDATE || !UPDATE_ID.equals(config.lastUpdateSeen());
+	}
+
+	/** The whole changelog as one gold, multi-line chat message. The header label uses
+	 *  {@link #UPDATE_LABEL} when set; otherwise the Hub-built jar version ("v1.4"), falling
+	 *  back to "[Update]" when that is unavailable (e.g. running from source). */
+	private String updateMessage()
+	{
+		String label = UPDATE_LABEL;
+		if (label == null)
+		{
+			String v = getClass().getPackage().getImplementationVersion();
+			label = (v == null || v.isEmpty()) ? "[Update]" : "v" + v;
+		}
+		// A <br> resets the colour, so re-open the gold tag on every line. Only the label
+		// ("[Update]" or the version) is white, so it stands out as the single accent.
+		String gold = "<col=ff981f>";
+		String white = "<col=ffffff>";
+		StringBuilder sb = new StringBuilder(gold).append("Emote Wheel ").append(white).append(label);
+		for (String line : UPDATE_LINES)
+		{
+			sb.append("<br>").append(gold).append("* ").append(line);
+		}
+		return sb.toString();
+	}
+
+	@Subscribe
+	public void onGameTick(GameTick e)
+	{
+		if (!showUpdateNextTick)
+		{
+			return;
+		}
+		showUpdateNextTick = false;
+		if (!shouldShowUpdate())
+		{
+			return;
+		}
+		updateShownThisLogin = true;
+		// One message with line breaks, so the whole changelog shares a single chat line /
+		// timestamp (like other update-notice plugins) rather than N separate messages.
+		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", updateMessage(), null);
+		// Remember it so it prints only once, even across logins (skipped in dev always-show).
+		if (!ALWAYS_SHOW_UPDATE)
+		{
+			configManager.setConfiguration(EmoteWheelConfig.GROUP, "lastUpdateSeen", UPDATE_ID);
 		}
 	}
 

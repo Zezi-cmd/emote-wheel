@@ -113,6 +113,8 @@ or None.
   default); off uses the in-game tab order.
 - **Random exclude list** - comma-separated emote names to keep out of the Random slot's
   cycle (for example: `Goblin Bow, Sit down`).
+- **Show update messages** - print a short changelog in the chat box the first time you log
+  in after the plugin updates (on by default).
 
 <br clear="all" />
 

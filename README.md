@@ -62,11 +62,11 @@ double up.
 To reorder, press and hold anywhere on a slot until the grab bars fade in, then drag it to
 its new spot. The slot you drop into gives a little pop.
 
+<img width="550" alt="Right-click to favorite" src="images/favorite.png" />
+
 You can also set favorites straight from the emote tab: right-click an emote and choose
 **Favorite** to drop it into the first open slot (or pick a slot to replace when all six
 are full). With the wheel open, right-click gives **Remove** to clear a slot.
-
-<img width="550" alt="Right-click to favorite" src="images/favorite.png" />
 
 <br clear="all" />
 

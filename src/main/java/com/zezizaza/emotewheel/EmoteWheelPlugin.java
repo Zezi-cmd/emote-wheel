@@ -125,8 +125,10 @@ public class EmoteWheelPlugin extends Plugin
 	/** Baked-in nudge of the wheel centre within the viewport, tuned for the floating look. */
 	private static final int WHEEL_OFFSET_X = -5;
 	private static final int WHEEL_OFFSET_Y = 25;
-	/** Wheel X nudge when the background is SHOWN (Classic/Fixed) - re-centres the wheel. */
-	private static final int WHEEL_OFFSET_X_SHOWN = 3;
+	/** Baked wheel X nudge for the Fixed / Classic layouts. */
+	private static final int WHEEL_OFFSET_X_CLASSIC = -5;
+	/** Baked vertical spread of the floating Modern wheel, as a percentage (rounds the oval). */
+	private static final int MODERN_WHEEL_HEIGHT = 99;
 	/** Transparency applied to non-hovered figures when something is hovered (0=opaque, 255=clear). */
 	private static final int FADE_OPACITY = 130;
 	/** Per-frame ease for the rearrange-mode frame stroke fade (higher = quicker). */
@@ -1021,7 +1023,7 @@ public class EmoteWheelPlugin extends Plugin
 	 *  the background is shown. The centre rearrange text follows the same value. */
 	public int getWheelOffsetX()
 	{
-		return isBackgroundHidden() ? WHEEL_OFFSET_X : WHEEL_OFFSET_X_SHOWN;
+		return isBackgroundHidden() ? WHEEL_OFFSET_X : WHEEL_OFFSET_X_CLASSIC;
 	}
 
 	public boolean isTabOpen()
@@ -1336,17 +1338,11 @@ public class EmoteWheelPlugin extends Plugin
 		// falls short - the left has no scrollbar. Widths are restored on toggle-off.
 		Widget scrollbarW = client.getWidget(InterfaceID.Emote.SCROLLBAR);
 		int sbW = (scrollbarW != null) ? scrollbarW.getWidth() : 0;
-		if (isBackgroundHidden())
-		{
-			reclaimWidth(viewport, sbW);
-			reclaimWidth(container, sbW);
-		}
-		else
-		{
-			// Not the floating look - leave the widths vanilla (undo if we'd widened).
-			restoreWidth(viewport);
-			restoreWidth(container);
-		}
+		// The scrollbar is hidden in EVERY layout while the wheel is active, so reclaim its
+		// column everywhere (not just the floating look) - otherwise Fixed / Classic keep a
+		// dead ~16px gutter on the right and the wheel is squeezed off-centre.
+		reclaimWidth(viewport, sbW);
+		reclaimWidth(container, sbW);
 
 		// Centre on the VIEWPORT, expressed in CONTENTS-relative coordinates.
 		// With scrollY pinned to 0 the two share an origin.
@@ -1389,6 +1385,12 @@ public class EmoteWheelPlugin extends Plugin
 		int ry = Math.min(RADIUS, (vh / 2) - (iconH / 2) - margin);
 		rx = Math.max(rx, 8);
 		ry = Math.max(ry, 8);
+		// The floating Modern panel is taller than wide, so the ring ovals out. Let the user
+		// pull its height in to round it; the Classic layouts keep their own shape.
+		if (isBackgroundHidden())
+		{
+			ry = Math.max(8, ry * MODERN_WHEEL_HEIGHT / 100);
+		}
 		// A lone emote sits dead centre rather than at the top of a one-point ring.
 		if (n == 1)
 		{
